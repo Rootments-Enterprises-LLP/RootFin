@@ -1,37 +1,48 @@
-// import { useState } from "react";
-// import Select from "react-select";
-import Head from "../components/Head";
-
+import { useState } from "react";
+const options = [
+    { value: "all", label: "All" },
+    { value: "balance_due", label: "Balance Due Collected" },
+    { value: "security_received", label: "Security Received" },
+    { value: "booking_advance", label: "Booking Advance" }
+];
 
 // Sample JSON Data
+const jsonData = [
+    { date: "01-02-2025", invoice: "012345678900", customer: "Ziyad", category: "Booking Advance", categoryAmt: 4000, totalTransaction: 4000, cash: 1500, bank: 2500, totalBill: 8500 },
+    { date: "01-02-2025", invoice: "012345678900", customer: "Ziyad", category: "Balance Due Collected", categoryAmt: 4500, totalTransaction: 7500, cash: 3000, bank: 4500, totalBill: 8500 },
+    { date: "01-02-2025", invoice: "012345678900", customer: "Ziyad", category: "Security Received", categoryAmt: 3000, cash: 0, totalTransaction: 7500, bank: 3000, totalBill: 8500 },
+    { date: "02-02-2025", invoice: "012345678900", customer: "Jishnu", category: "Booking Advance", categoryAmt: 2500, totalTransaction: 2500, cash: 2500, bank: 0, totalBill: 4500 },
+    { date: "02-02-2025", invoice: "012345678900", customer: "Jishnu", category: "Cancellation Amount", categoryAmt: -2500, totalTransaction: -2500, cash: -2500, bank: 0, totalBill: -4500 },
+    { date: "03-02-2025", invoice: "012345678900", customer: "Ziyad", category: "Security Refund", categoryAmt: -3000, totalTransaction: -3000, cash: 0, bank: -3000, totalBill: 0 },
+    { date: "05-02-2025", invoice: "012345678900", customer: "Nidhin", category: "Booking Advance", categoryAmt: 2500, totalTransaction: 2500, cash: 1000, bank: 1500, totalBill: 5000 },
+    { date: "05-02-2025", invoice: "012345678900", customer: "Nidhin", category: "Balance Due Collected", categoryAmt: 2500, totalTransaction: 4000, cash: 2000, bank: 2000, totalBill: 5000 },
+    { date: "05-02-2025", invoice: "012345678900", customer: "Nidhin", category: "Security Received", categoryAmt: 1500, totalTransaction: 1500, cash: 0, bank: 1500, totalBill: 0 }
+];
 
-const BillWiseIncome = () => {
-    
+const BillBooking = () => {
+
+
+    const [selectedCategory, setSelectedCategory] = useState(null);
+    const [tableData, setTableData] = useState(jsonData);
+    console.log(setTableData);
+
+    // Calculate totals
+    const totalCategoryAmt = tableData.reduce((sum, item) => sum + item.categoryAmt, 0);
+    const totalTransaction = tableData.reduce((sum, item) => sum + item.categoryAmt, 0);
+    const totalCash = tableData.reduce((sum, item) => sum + item.cash, 0);
+    const totalBank = tableData.reduce((sum, item) => sum + item.bank, 0);
+    const totalBillValue = tableData.reduce((sum, item) => sum + item.totalBill, 0);
+
+    console.log(options);
+    console.log(selectedCategory);
+    console.log(setSelectedCategory);
+
+
 
     return (
-        <div className="border border-gray-200 shadow-lg rounded-md mx-10 mt-10">
-            <div className="w-full">
-                <Head />
-            </div>
-            <div className="flex ml-10 gap-6 mt-5">
-                <div className="flex flex-col">
-                    <label>From <span className="text-red-500">*</span></label>
-                    <input type="date" className="border w-52 p-2 rounded-md border-gray-400" />
-                </div>
-                <div className="flex flex-col">
-                    <label>To <span className="text-red-500">*</span></label>
-                    <input type="date" className="border w-52 p-2 rounded-md border-gray-400" />
-                </div>
-                {/* <div className="flex flex-col w-52">
-                    <label>Bill Category</label>
-                    <Select options={options} value={selectedCategory} onChange={setSelectedCategory} placeholder="Select category" className="rounded-md" />
-                </div> */}
-                <div className="h-10 mt-6 cursor-pointer px-4 py-2 rounded-md text-white bg-blue-600 flex items-center">
-                    <button className="cursor-pointer">Show Report</button>
-                </div>
-            </div>
+        <div>
 
-            {/* <div className="border border-gray-400 rounded-md mt-6 mx-10 mb-10 overflow-hidden">
+            <div className="border border-gray-400 rounded-md mt-6 mx-10 mb-10 overflow-hidden">
                 <table className="rounded-md table-auto w-full border-collapse border border-gray-300">
                     <thead>
                         <tr className="bg-gray-100 text-center">
@@ -70,9 +81,9 @@ const BillWiseIncome = () => {
                         </tr>
                     </tbody>
                 </table>
-            </div> */}
+            </div>
         </div>
-    );
-};
+    )
+}
 
-export default BillWiseIncome;
+export default BillBooking
