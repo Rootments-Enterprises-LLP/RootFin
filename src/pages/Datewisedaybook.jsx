@@ -25,7 +25,7 @@ const Datewisedaybook = () => {
     console.log(setTableData);
     return (
         <div>
-            <Header title={'date wise day book'} />
+            <Header title={'Financial Summary Report'} />
             {/* <div className="border border-gray-200 shadow-lg rounded-md mx-10 mt-10">
                 <div className="w-full">
                     <Head />

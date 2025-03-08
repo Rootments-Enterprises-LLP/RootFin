@@ -44,7 +44,7 @@ const Nav = () => {
                         {homeOpen && (
                             <div className="ml-8 space-y-2">
                                 <Link to="/" className={`block p-2 rounded hover:bg-[#86aeff] hover:text-white ${getTabClasses1("/")}`}>Day Book</Link>
-                                <Link to="/datewisedaybook" className={`block p-2 rounded hover:bg-[#86aeff] hover:text-white ${getTabClasses1('/datewisedaybook')}`}>Date Wise Day Book</Link>
+                                <Link to="/datewisedaybook" className={`block p-2 rounded hover:bg-[#86aeff] hover:text-white ${getTabClasses1('/datewisedaybook')}`}>Financial Summary Report</Link>
                             </div>
                         )}
                     </div>
