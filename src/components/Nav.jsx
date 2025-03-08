@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import {  FileText, ChevronDown,ShoppingBag, LineChart, DollarSign } from "lucide-react";
+import { FileText, ChevronDown, ShoppingBag, LineChart, DollarSign } from "lucide-react";
 const Nav = () => {
     const location = useLocation();
 
@@ -50,10 +50,10 @@ const Nav = () => {
                     </div>
 
                     <div>
-                        <Link to={'/'}>
+                        <Link to={'/BookingReport'}>
                             <button
                                 onClick={() => setHomeOpen1(!homeOpen1)}
-                                className={`flex items-center justify-between w-full p-3 rounded hover:bg-[#3758F9] hover:text-white ${getTabClasses('/BookingReport')}`}>
+                                className={`flex items-center justify-between w-full p-3 rounded hover:bg-[#3758F9] hover:text-white ${getTabClasses('/BookingReport')} ${getTabClasses('/RentOutReport')}`}>
                                 <div className="flex items-center space-x-3">
                                     <ShoppingBag size={20} />
                                     <span>Quantity Reports</span>
@@ -64,8 +64,8 @@ const Nav = () => {
                         </Link>
                         {homeOpen1 && (
                             <div className="ml-8 space-y-2">
-                                <Link to="/dashboard" className={`block p-2 rounded hover:bg-[#86aeff] hover:text-white ${getTabClasses1('/BookingReport')}`}>Booking Report</Link>
-                                <Link to="/analytics" className={`block p-2 rounded hover:bg-[#86aeff] hover:text-white ${getTabClasses1('/RentOutReport')} `}>Rent Out Report</Link>
+                                <Link to="/BookingReport" className={`block p-2 rounded hover:bg-[#86aeff] hover:text-white ${getTabClasses1('/BookingReport')}`}>Booking Report</Link>
+                                <Link to="/RentOutReport" className={`block p-2 rounded hover:bg-[#86aeff] hover:text-white ${getTabClasses1('/RentOutReport')} `}>Rent Out Report</Link>
                             </div>
                         )}
                     </div>
@@ -76,7 +76,7 @@ const Nav = () => {
                     </Link>
                     <Link to="/CashBankLedger" className={`flex items-center space-x-3 p-3 rounded hover:bg-[#3758F9] hover:text-white ${getTabClasses1("/CashBankLedger")}`}>
                         <DollarSign size={20} />
-                        <span>Cash/ Bank Ledger</span>
+                        <span>Cash / Bank Ledger</span>
                     </Link>
                 </nav>
             </div>

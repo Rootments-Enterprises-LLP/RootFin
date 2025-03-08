@@ -1,6 +1,6 @@
 import { Routes, Route } from "react-router-dom";
 import DayBookInc from "./pages/BillWiseIncome.jsx";
-import RentOut from "./pages/RentOut.jsx";
+import Datewisedaybook from "./pages/Datewisedaybook.jsx";
 import Booking from "./pages/Booking.jsx";
 import DayBook from "./pages/DayBook.jsx";
 import SecurityReturn from "./pages/SecurityReturn";
@@ -23,11 +23,11 @@ const App = () => {
 
         <Routes>
           <Route path="/" element={<DayBookInc />} />
-          <Route path="/rent-out" element={<RentOut />} />
-          <Route path="/booking" element={<Booking />} />
-          <Route path="/day-book" element={<DayBook />} />
-          <Route path="/security-return" element={<SecurityReturn />} />
-          <Route path="/security-pending" element={<SecurityPending />} />
+          <Route path="/datewisedaybook" element={<Datewisedaybook />} />
+          <Route path="/BookingReport" element={<Booking />} />
+          <Route path="/RentOutReport" element={<DayBook />} />
+          <Route path="/Income&Expenses" element={<SecurityReturn />} />
+          <Route path="/CashBankLedger" element={<SecurityPending />} />
           <Route path="/cancellation" element={<Cancellation />} />
           <Route path="/Text" element={<Text />} />
         </Routes>
