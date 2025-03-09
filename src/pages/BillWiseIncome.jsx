@@ -97,18 +97,23 @@ const DayBookInc = () => {
                     <div className="p-6 bg-gray-100 min-h-screen">
                         {/* Dropdowns */}
                         <div className="flex gap-4 mb-6 w-[600px]">
-                            <Select
-                                options={categories}
-                                value={selectedCategory}
-                                onChange={setSelectedCategory}
-                                className="w-1/2"
-                            />
-                            <Select
-                                options={subCategories}
-                                value={selectedSubCategory}
-                                onChange={setSelectedSubCategory}
-                                className="w-1/2"
-                            />
+                            <div className='w-full'>
+                                <label htmlFor="">Category</label>
+                                <Select
+                                    options={categories}
+                                    value={selectedCategory}
+                                    onChange={setSelectedCategory}
+                                   
+                                />
+                            </div>
+                            <div className='w-full'>
+                                <label htmlFor="">Sub Category</label>
+                                <Select
+                                    options={subCategories}
+                                    value={selectedSubCategory}
+                                    onChange={setSelectedSubCategory}
+                                />
+                            </div>
                         </div>
 
                         {/* Table */}

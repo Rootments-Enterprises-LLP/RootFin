@@ -1,93 +1,94 @@
+import Headers from '../components/Header.jsx';
 
-
-import { useState } from "react";
-// import Select from "react-select";
-// import Head from "../components/Head";
-import Header from "../components/Header";
-
-// const options = [
-//     { value: "all", label: "All" },
-//     { value: "balance_due", label: "Balance Due Collected" },
-//     { value: "security_received", label: "Security Received" },
-//     { value: "booking_advance", label: "Booking Advance" }
-// ];
-
-// Sample JSON Data
-const jsonData = [
-    { date: "01-02-2025", Bill: 12, Quantity: 40, Advance: 30000, BillValue: 400000 },
-    { date: "01-02-2025", Bill: 12, Quantity: 40, Advance: 25000, BillValue: 400000 },
-    { date: "01-02-2025", Bill: 12, Quantity: 40, Advance: 55000, BillValue: 400000 }
+const transactions = [
+    {
+        date: "01-01-2025",
+        Bills: "38",
+        Quantity: "54",
+        Advance: "3500",
+        BillValue: 10000,
+    },
+    {
+        date: "01-01-2025",
+        Bills: "33",
+        Quantity: "24",
+        Advance: "2600",
+        BillValue: 30000,
+    }
 ];
-const Booking = () => {
-    //  const [selectedCategory, setSelectedCategory] = useState(null);
-    const [tableData, setTableData] = useState(jsonData); // Load JSON Data
-    console.log(tableData);
 
-    console.log(setTableData);
+const Booking = () => {
     return (
         <div>
-            <Header title={'Booking Report'}/>
-            {/* <div className="border border-gray-200 shadow-lg rounded-md mx-10 mt-10">
-                <div className="w-full">
-                    <Head />
-                </div>
-                <div className="flex ml-10 gap-6 mt-5">
-                    <div className="flex flex-col">
-                        <label>From <span className="text-red-500">*</span></label>
-                        <input type="date" className="border w-52 p-2 rounded-md border-gray-400" />
+            <Headers title={'Booking Report'} />
+            <div className='ml-[240px]'>
+                <div className="p-6 bg-gray-100 min-h-screen">
+                    {/* Date Inputs */}
+                    <div className="flex gap-4 mb-6 w-[600px]">
+                        <div className='w-full flex flex-col '>
+                            <label htmlFor="to">To *</label>
+                            <input type="date" id="to" className='border border-gray-300 py-[6px]' />
+                        </div>
+                        <div className='w-full flex flex-col '>
+                            <label htmlFor="from">From *</label>
+                            <input type="date" id="from" className='border border-gray-300 py-[6px]' />
+                        </div>
                     </div>
 
-                    <div className="flex flex-col">
-                        <label>To <span className="text-red-500">*</span></label>
-                        <input type="date" className="border w-52 p-2 rounded-md border-gray-400" />
-                    </div>
-
-                   
-
-                    <div className="h-10 mt-6 cursor-pointer px-4 py-2 rounded-md text-white bg-blue-600 flex items-center ">
-                        <button className="cursor-pointer ">Show Report</button>
-                    </div>
-                </div>
-
-                <div className="border border-gray-400 rounded-md mt-6 mx-10 mb-10 overflow-hidden">
-                    <table className="rounded-md table-auto w-full border-collapse border border-gray-300">
-                        <thead className="rounded-md">
-                            <tr className="bg-gray-100 text-center">
-                                <th className="border border-gray-300 px-4 py-2">Date</th>
-                                <th className="border border-gray-300 px-4 py-2">No. of Bills</th>
-                                <th className="border border-gray-300 px-4 py-2">Quantity</th>
-                                <th className="border border-gray-300 px-4 py-2">Advance</th>
-
-                                <th className="border border-gray-300 px-4 py-2">Bill Value</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {tableData.map((item, index) => (
-                                <tr key={index} className={index % 2 === 0 ? "bg-gray-50 text-center" : "text-center"}>
-                                    <td className="border border-gray-300 px-4 py-2">{item.date}</td>
-                                    <td className="border border-gray-300 px-4 py-2">{item.Bill}</td>
-                                    <td className="border border-gray-300 px-4 py-2">{item.Quantity}</td>
-                                    <td className="border border-gray-300 px-4 py-2">{item.Advance}</td>
-
-                                    <td className="border border-gray-300 px-4 py-2">{item.BillValue}</td>
+                    {/* Table */}
+                    <div className="bg-white p-4 shadow-md rounded-lg ">
+                        <table className="w-full border-collapse border rounded-md border-gray-300">
+                            <thead className='rounded-md'>
+                                <tr className="bg-[#7C7C7C] rounded-md text-white">
+                                    <th className="border p-2">Date</th>
+                                    <th className="border p-2">No. of Bills</th>
+                                    <th className="border p-2">Quantity</th>
+                                    <th className="border p-2">Advance</th>
+                                    <th className="border p-2">Bill Value</th>
                                 </tr>
-                            ))}
-                        </tbody>
+                            </thead>
+                            <tbody>
+                                {transactions.length > 0 ? (
+                                    transactions.map((transaction, index) => (
+                                        <tr key={index}>
+                                            <td className="border p-2">{transaction.date}</td>
+                                            <td className="border p-2">{transaction.Bills}</td>
+                                            <td className="border p-2">{transaction.Quantity}</td>
+                                            <td className="border p-2">{transaction.Advance}</td>
+                                            <td className="border p-2">{transaction.BillValue}</td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan="5" className="text-center border p-4">No transactions found</td>
+                                    </tr>
+                                )}
+                            </tbody>
 
-                        <tfoot>
-                            <tr className="bg-white text-center font-semibold">
-                                <td className="border border-gray-300 px-4 py-2 text-left" colSpan="">Total:</td>
-                                <td className="border border-gray-300 px-4 py-2">{tableData.reduce((sum, item) => sum + item.Bill, 0)}</td>
-                                <td className="border border-gray-300 px-4 py-2">{tableData.reduce((sum, item) => sum + item.Quantity, 0)}</td>
-                                <td className="border border-gray-300 px-4 py-2">{tableData.reduce((sum, item) => sum + item.Advance, 0)}</td>
-                                <td className="border border-gray-300 px-4 py-2">{tableData.reduce((sum, item) => sum + item.BillValue, 0)}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                            {/* Footer Totals */}
+                            <tfoot>
+                                <tr className="bg-white text-center font-semibold">
+                                    <td className="border border-gray-300 px-4 py-2 text-left" colSpan="1">Total:</td>
+                                    <td className="border border-gray-300 px-4 py-2">
+                                        {transactions.reduce((sum, item) => sum + parseInt(item.Bills), 0)}
+                                    </td>
+                                    <td className="border border-gray-300 px-4 py-2">
+                                        {transactions.reduce((sum, item) => sum + parseInt(item.Quantity), 0)}
+                                    </td>
+                                    <td className="border border-gray-300 px-4 py-2">
+                                        {transactions.reduce((sum, item) => sum + parseInt(item.Advance), 0)}
+                                    </td>
+                                    <td className="border border-gray-300 px-4 py-2">
+                                        {transactions.reduce((sum, item) => sum + item.BillValue, 0)}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
                 </div>
-            </div> */}
+            </div>
         </div>
-    )
+    );
 }
 
-export default Booking
+export default Booking;
