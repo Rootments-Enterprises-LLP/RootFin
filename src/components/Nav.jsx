@@ -19,8 +19,11 @@ const Nav = () => {
 
     const [homeOpen1, setHomeOpen1] = useState(false);
     console.log(setIsOpen);
+
+    // alert(location.pathname)
     return (
-        <div className="flex">
+        <div className={`flex ${location.pathname === "/login" ? "hidden" : "block"}`}
+        >
             {/* Sidebar */}
             <div className={`fixed top-0 left-0 h-full bg-[#EEF1FF] text-[#53545C] w-64 p-5 transform ${isOpen ? "translate-x-0" : "-translate-x-64"} transition-transform duration-300`}>
                 {/* <button className="text-white mb-5" onClick={() => setIsOpen(false)}>

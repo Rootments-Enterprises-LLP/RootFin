@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import DayBookInc from "./pages/BillWiseIncome.jsx";
 import Datewisedaybook from "./pages/Datewisedaybook.jsx";
 import Booking from "./pages/Booking.jsx";
@@ -9,12 +9,16 @@ import SecurityPending from "./pages/SecurityPending";
 // import Headers from './components/Header.jsx'
 // import Text from "./pages/Text.jsx";
 import Nav from "./components/Nav.jsx";
+import Login from "./pages/Login.jsx";
 
 const App = () => {
+  const location = useLocation();
+  console.log(location.pathname);
+
   return (
 
 
-    <div className="flex w-full">
+    <div className="">
       <div>
         <Nav />
       </div>
@@ -22,6 +26,8 @@ const App = () => {
 
 
         <Routes>
+          <Route path="/login" element={<Login />} />
+
           <Route path="/" element={<DayBookInc />} />
           <Route path="/datewisedaybook" element={<Datewisedaybook />} />
           <Route path="/BookingReport" element={<Booking />} />

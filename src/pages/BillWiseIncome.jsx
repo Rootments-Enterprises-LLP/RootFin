@@ -103,7 +103,7 @@ const DayBookInc = () => {
                                     options={categories}
                                     value={selectedCategory}
                                     onChange={setSelectedCategory}
-                                   
+
                                 />
                             </div>
                             <div className='w-full'>
