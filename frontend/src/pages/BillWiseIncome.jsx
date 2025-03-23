@@ -1,6 +1,7 @@
 import Headers from '../components/Header.jsx';
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import Select from "react-select";
+import useFetch from '../hooks/useFetch.jsx';
 
 const categories = [
     { value: "all", label: "All" },
@@ -23,34 +24,7 @@ const subCategories = [
     { value: "petty_expense", label: "Petty Expense" },
 ];
 
-const transactions = [
-    {
-        date: "01-01-2025",
-        invoiceNo: "INV-010",
-        customerName: "Jishnu",
-        category: "Booking",
-        subCategory: "Advance",
-        remarks: "-",
-        amount: 2000,
-        totalTransaction: 2000,
-        billValue: 5000,
-        cash: 1000,
-        bank: 1000
-    },
-    {
-        date: "01-01-2025",
-        invoiceNo: "INV-011",
-        customerName: "Rahul",
-        category: "Rent Out",
-        subCategory: "Security",
-        remarks: "Paid in full",
-        amount: 3500,
-        totalTransaction: 3500,
-        billValue: 6000,
-        cash: 2000,
-        bank: 1500
-    }
-];
+
 const denominations = [
     { label: "500", value: 500 },
     { label: "200", value: 200 },
@@ -64,6 +38,53 @@ const denominations = [
 const opening = [{ cash: "60000", bank: "54000" }];
 
 const DayBookInc = () => {
+    const apiUrl = "http://15.207.90.158:5005/api/GetBooking/GetBookingList?LocCode=144&DateFrom=2025-01-01&DateTo=2025-03-30";
+    const apiurl1 = 'http://15.207.90.158:5005/api/GetBooking/GetRentoutList?LocCode=144&DateFrom=2025-01-01&DateTo=2025-03-30';
+    const apiUrl2 = "http://15.207.90.158:5005/api/GetBooking/GetReturnList?LocCode=144&DateFrom=2025-01-01&DateTo=2025-03-30"
+
+    // Memoizing fetch options
+    const fetchOptions = useMemo(() => ({}), []);
+
+    const { data } = useFetch(apiUrl, fetchOptions);
+    const { data: data1 } = useFetch(apiurl1, fetchOptions);
+    const { data: data2 } = useFetch(apiUrl2, fetchOptions);
+    console.log(data1);
+
+    const bookingTransactions = (data?.dataSet?.data || []).map(transaction => ({
+        ...transaction,
+        bookingCashAmount: parseInt(transaction.bookingCashAmount, 10) || 0,
+        bookingBankAmount: parseInt(transaction.bookingBankAmount, 10) || 0,
+        invoiceAmount: parseInt(transaction.invoiceAmount, 10) || 0,
+        Category: "Booking",
+        SubCategory: "Advance"
+    }));
+
+    const rentOutTransactions = (data1?.dataSet?.data || []).map(transaction => ({
+        ...transaction,
+        bookingCashAmount: parseInt(transaction.bookingCashAmount, 10) || 0,
+        bookingBankAmount: parseInt(transaction.bookingBankAmount, 10) || 0,
+        invoiceAmount: parseInt(transaction.invoiceAmount, 10) || 0,
+        Category: "RentOut",
+        SubCategory: "Security"
+    }));
+
+    const returnOutTransactions = (data2?.dataSet?.data || []).map(transaction => ({
+        ...transaction,
+        returnBankAmount: -(parseInt(transaction.returnBankAmount, 10) || 0), 
+        returnCashAmount: -(parseInt(transaction.returnCashAmount, 10) || 0), 
+        invoiceAmount: parseInt(transaction.invoiceAmount, 10) || 0, 
+        advanceAmount: parseInt(transaction.advanceAmount, 10) || 0, 
+        RsecurityAmount: -(parseInt(transaction.securityAmount, 10) || 0), 
+        Category: "Return",
+        SubCategory: "Security"
+    }));
+
+    
+    const allTransactions = [...bookingTransactions, ...rentOutTransactions, ...returnOutTransactions];
+
+    console.log(allTransactions);
+
+
     const [selectedCategory, setSelectedCategory] = useState(categories[0]);
     const [selectedSubCategory, setSelectedSubCategory] = useState(subCategories[0]);
     const [quantities, setQuantities] = useState(Array(denominations.length).fill(""));
@@ -82,12 +103,14 @@ const DayBookInc = () => {
     const closingCash = 200000;
     const physicalCash = 190000;
     const differences = physicalCash - closingCash;
-    // Filter transactions based on category & subcategory
-    const filteredTransactions = transactions.filter(
+    const filteredTransactions = allTransactions.filter(
         (t) =>
             (selectedCategory.value === "all" || t.category.toLowerCase() === selectedCategory.value) &&
             (selectedSubCategory.value === "all" || t.subCategory.toLowerCase() === selectedSubCategory.value)
     );
+
+    console.log(allTransactions);
+
 
     return (
         <>
@@ -146,18 +169,20 @@ const DayBookInc = () => {
                                     {filteredTransactions.length > 0 ? (
                                         filteredTransactions.map((transaction, index) => (
                                             <tr key={index}>
-                                                <td className="border p-2">{transaction.date}</td>
+                                                <td className="border p-2">{transaction.bookingDate}</td>
                                                 <td className="border p-2">{transaction.invoiceNo}</td>
                                                 <td className="border p-2">{transaction.customerName}</td>
-                                                <td className="border p-2">{transaction.category}</td>
-                                                <td className="border p-2">{transaction.subCategory}</td>
-                                                <td className="border p-2">{transaction.remarks}</td>
-                                                <td className="border p-2">{transaction.amount}</td>
-                                                <td className="border p-2">{transaction.totalTransaction}</td>
-                                                <td className="border p-2">{transaction.billValue}</td>
-                                                <td className="border p-2">{transaction.cash}</td>
-                                                <td className="border p-2">{transaction.bank}</td>
+                                                <td className="border p-2">{transaction.Category}</td>
+                                                <td className="border p-2">{transaction.SubCategory}</td>
+                                                <td className="border p-2"></td>
+                                                <td className="border p-2">{transaction.RsecurityAmount || transaction.securityAmount || transaction.invoiceAmount || 0}</td>
+                                                <td className="border p-2">{transaction.returnCashAmount + transaction.returnBankAmount || (parseInt(transaction.rentoutCashAmount) + parseInt(transaction.rentoutBankAmount)) || (transaction.bookingCashAmount + transaction.bookingBankAmount) || 0}</td>
+                                                <td className="border p-2">{transaction.invoiceAmount}</td>
+                                                <td className="border p-2">{transaction.rentoutCashAmount || transaction.bookingCashAmount || transaction.returnCashAmount || 0}</td>
+                                                <td className="border p-2">{transaction.rentoutBankAmount || transaction.bookingBankAmount || transaction.returnBankAmount || 0}</td>
+
                                             </tr>
+
                                         ))
                                     ) : (
                                         <tr>
@@ -171,20 +196,47 @@ const DayBookInc = () => {
                                     <tr className="bg-white text-center font-semibold">
                                         <td className="border border-gray-300 px-4 py-2 text-left" colSpan="6">Total:</td>
                                         <td className="border border-gray-300 px-4 py-2">
-                                            {filteredTransactions.reduce((sum, item) => sum + item.amount, 0)}
+                                            {filteredTransactions.reduce((sum, item) =>
+                                                sum + (parseInt(item.invoiceAmount) || 0) + (parseInt(item.securityAmount) || 0) + (parseInt(item.RsecurityAmount) || 0),
+                                                0)}
                                         </td>
                                         <td className="border border-gray-300 px-4 py-2">
-                                            {filteredTransactions.reduce((sum, item) => sum + item.totalTransaction, 0)}
+                                            {filteredTransactions.reduce((sum, item) =>
+                                                sum +
+                                                (parseInt(item.bookingCashAmount) || 0) +
+                                                (parseInt(item.bookingBankAmount) || 0) +
+                                                (parseInt(item.rentoutCashAmount) || 0) +
+                                                (parseInt(item.rentoutBankAmount) || 0) +
+                                                (parseInt(item.returnCashAmount) || 0) +
+                                                (parseInt(item.returnBankAmount) || 0),
+                                                0)}
                                         </td>
                                         <td className="border border-gray-300 px-4 py-2">
-                                            {filteredTransactions.reduce((sum, item) => sum + item.billValue, 0)}
+                                            {filteredTransactions.reduce((sum, item) => sum + item.invoiceAmount, 0)}
                                         </td>
                                         <td className="border border-gray-300 px-4 py-2">
-                                            {filteredTransactions.reduce((sum, item) => sum + item.cash, 0) + Number(opening[0].cash)}
+                                            {
+                                                filteredTransactions.reduce((sum, item) =>
+                                                    sum +
+                                                    (parseInt(item.bookingCashAmount, 10) || 0) +
+                                                    (parseInt(item.rentoutCashAmount, 10) || 0) +
+                                                    (parseInt(item.returnCashAmount, 10) || 0),
+                                                    0) + (Number(opening[0]?.cash) || 0)
+                                            }
                                         </td>
+
                                         <td className="border border-gray-300 px-4 py-2">
-                                            {filteredTransactions.reduce((sum, item) => sum + item.bank, 0) + Number(opening[0].bank)}
+                                            {
+                                                filteredTransactions.reduce((sum, item) =>
+                                                    sum +
+                                                    (parseInt(item.bookingBankAmount, 10) || 0) +
+                                                    (parseInt(item.rentoutBankAmount, 10) || 0) +
+                                                    (parseInt(item.returnBankAmount, 10) || 0),
+                                                    0) + (Number(opening[0]?.bank) || 0)
+                                            }
                                         </td>
+
+
                                     </tr>
                                 </tfoot>
                             </table>
