@@ -73,8 +73,14 @@ const Datewisedaybook = () => {
         bookingCashAmount: parseInt(transaction.bookingCashAmount, 10) || 0,
         bookingBankAmount: parseInt(transaction.bookingBankAmount, 10) || 0,
         invoiceAmount: parseInt(transaction.invoiceAmount, 10) || 0,
+        securityAmount: parseInt(transaction.securityAmount, 10) || 0,
+        advanceAmount: parseInt(transaction.advanceAmount, 10) || 0,
+        Balance: (parseInt(transaction.invoiceAmount ?? 0, 10) - parseInt(transaction.advanceAmount ?? 0, 10)) || 0,
+        rentoutUPIAmount: parseInt(transaction.rentoutUPIAmount),
         Category: "RentOut",
-        SubCategory: "Security"
+        SubCategory: "Security",
+        SubCategory1: "Balance Payable"
+
     }));
 
     const returnOutTransactions = (data2?.dataSet?.data || []).map(transaction => ({
@@ -189,28 +195,66 @@ const Datewisedaybook = () => {
 
                                 {/* Transactions */}
                                 {filteredTransactions.length > 0 ? (
-                                    filteredTransactions.map((transaction, index) => (
-                                        <tr key={index}>
-                                            <td className="border p-2">{transaction.bookingDate}</td>
-                                            <td className="border p-2">{transaction.invoiceNo}</td>
-                                            <td className="border p-2">{transaction.customerName}</td>
-                                            <td className="border p-2">{transaction.Category}</td>
-                                            <td className="border p-2">{transaction.SubCategory}</td>
-                                            <td className="border p-2"></td>
-                                            <td className="border p-2">{transaction.RsecurityAmount || transaction.securityAmount || transaction.invoiceAmount || 0}</td>
-                                            <td className="border p-2">{transaction.returnCashAmount + transaction.returnBankAmount || (parseInt(transaction.rentoutCashAmount) + parseInt(transaction.rentoutBankAmount)) || (transaction.bookingCashAmount + transaction.bookingBankAmount) || 0}</td>
-                                            <td className="border p-2">{transaction.invoiceAmount}</td>
-                                            <td className="border p-2">{transaction.rentoutCashAmount || transaction.bookingCashAmount || transaction.returnCashAmount || 0}</td>
-                                            <td className="border p-2">{transaction.rentoutBankAmount || transaction.bookingBankAmount || transaction.returnBankAmount || 0}</td>
+                                        filteredTransactions.map((transaction, index) => (
+                                            <>
+                                                {transaction.Category === 'RentOut' ? (
+                                                    <>
+                                                        <tr key={`${index}-1`}>
+                                                            <td className="border p-2">{transaction.bookingDate}</td>
+                                                            <td className="border p-2">{transaction.invoiceNo}</td>
+                                                            <td className="border p-2">{transaction.customerName}</td>
+                                                            <td rowSpan="2" className="border p-2">{transaction.Category}</td> {/* Merged Row */}
+                                                            <td className="border p-2">{transaction.SubCategory}</td>
+                                                            <td className="border p-2"></td>
+                                                            <td className="border p-2">{transaction.RsecurityAmount || transaction.securityAmount || transaction.invoiceAmount || 0}</td>
+                                                            <td rowSpan="2" className="border p-2">
+                                                                {transaction.securityAmount + transaction.Balance}
+                                                            </td>
+                                                            <td className="border p-2" rowSpan="2">{transaction.invoiceAmount}</td>
+                                                            <td className="border p-2" rowSpan="2">{transaction.rentoutCashAmount || 0}</td>
+                                                            <td className="border p-2" rowSpan="2">{parseInt(transaction.rentoutBankAmount) + parseInt(transaction.rentoutUPIAmount) || 0}</td>
+                                                        </tr>
 
+                                                        <tr key={`${index}-2`}>
+                                                            <td className="border p-2">{transaction.bookingDate}</td> {/* Repeated Row */}
+                                                            <td className="border p-2">{transaction.invoiceNo}</td>
+                                                            <td className="border p-2">{transaction.customerName}</td>
+                                                            {/* Category is skipped due to rowSpan */}
+                                                            <td className="border p-2">{transaction.SubCategory1
+                                                            }</td>
+                                                            <td className="border p-2"></td>
+                                                            <td className="border p-2">{transaction.Balance}</td>
+
+                                                            {/* <td className="border p-2">{transaction.invoiceAmount}</td> */}
+                                                            {/* <td className="border p-2">{transaction.rentoutCashAmount || transaction.bookingCashAmount || transaction.returnCashAmount || 0}</td>
+                                                            <td className="border p-2">{transaction.rentoutBankAmount || transaction.bookingBankAmount || transaction.returnBankAmount || 0}</td> */}
+                                                        </tr>
+                                                    </>
+                                                ) : (
+                                                    <tr key={index}>
+                                                        <td className="border p-2">{transaction.bookingDate}</td>
+                                                        <td className="border p-2">{transaction.invoiceNo}</td>
+                                                        <td className="border p-2">{transaction.customerName}</td>
+                                                        <td className="border p-2">{transaction.Category}</td>
+                                                        <td className="border p-2">{transaction.SubCategory}</td>
+                                                        <td className="border p-2"></td>
+                                                        <td className="border p-2">{transaction.RsecurityAmount || transaction.securityAmount || transaction.invoiceAmount || 0}</td>
+                                                        <td className="border p-2">{(transaction.returnCashAmount + transaction.returnBankAmount) || (parseInt(transaction.rentoutCashAmount) + parseInt(transaction.rentoutBankAmount)) || (transaction.bookingCashAmount + transaction.bookingBankAmount) || 0}</td>
+                                                        <td className="border p-2">{transaction.invoiceAmount}</td>
+                                                        <td className="border p-2">{transaction.rentoutCashAmount || transaction.bookingCashAmount || transaction.returnCashAmount || 0}</td>
+                                                        <td className="border p-2">{transaction.rentoutBankAmount || transaction.bookingBankAmount || transaction.returnBankAmount || 0}</td>
+                                                    </tr>
+                                                )}
+                                            </>
+
+
+
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="11" className="text-center border p-4">No transactions found</td>
                                         </tr>
-
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan="11" className="text-center border p-4">No transactions found</td>
-                                    </tr>
-                                )}
+                                    )}
                             </tbody>
 
                             {/* Footer Totals */}
