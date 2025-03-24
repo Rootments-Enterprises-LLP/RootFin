@@ -38,9 +38,15 @@ const denominations = [
 const opening = [{ cash: "60000", bank: "54000" }];
 
 const DayBookInc = () => {
-    const apiUrl = "http://15.207.90.158:5005/api/GetBooking/GetBookingList?LocCode=144&DateFrom=2025-01-01&DateTo=2025-03-30";
-    const apiurl1 = 'http://15.207.90.158:5005/api/GetBooking/GetRentoutList?LocCode=144&DateFrom=2025-01-01&DateTo=2025-03-30';
-    const apiUrl2 = "http://15.207.90.158:5005/api/GetBooking/GetReturnList?LocCode=144&DateFrom=2025-01-01&DateTo=2025-03-30"
+
+    const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
+    console.log(currentusers);
+    const currentDate = new Date().toISOString().split("T")[0];
+    // alert(currentDate);
+
+    const apiUrl = `http://15.207.90.158:5005/api/GetBooking/GetBookingList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
+    const apiurl1 = ` http://15.207.90.158:5005/api/GetBooking/GetRentoutList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
+    const apiUrl2 = `http://15.207.90.158:5005/api/GetBooking/GetReturnList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`
 
     // Memoizing fetch options
     const fetchOptions = useMemo(() => ({}), []);
@@ -197,7 +203,6 @@ const DayBookInc = () => {
                                                             <td className="border p-2">{transaction.bookingDate}</td> {/* Repeated Row */}
                                                             <td className="border p-2">{transaction.invoiceNo}</td>
                                                             <td className="border p-2">{transaction.customerName}</td>
-                                                            {/* Category is skipped due to rowSpan */}
                                                             <td className="border p-2">{transaction.SubCategory1
                                                             }</td>
                                                             <td className="border p-2"></td>
@@ -216,7 +221,7 @@ const DayBookInc = () => {
                                                         <td className="border p-2">{transaction.Category}</td>
                                                         <td className="border p-2">{transaction.SubCategory}</td>
                                                         <td className="border p-2"></td>
-                                                        <td className="border p-2">{transaction.RsecurityAmount || transaction.securityAmount || transaction.invoiceAmount || 0}</td>
+                                                        <td className="border p-2">{(transaction.returnCashAmount + transaction.returnBankAmount) || (parseInt(transaction.rentoutCashAmount) + parseInt(transaction.rentoutBankAmount)) || (transaction.bookingCashAmount + transaction.bookingBankAmount) || 0}</td>
                                                         <td className="border p-2">{(transaction.returnCashAmount + transaction.returnBankAmount) || (parseInt(transaction.rentoutCashAmount) + parseInt(transaction.rentoutBankAmount)) || (transaction.bookingCashAmount + transaction.bookingBankAmount) || 0}</td>
                                                         <td className="border p-2">{transaction.invoiceAmount}</td>
                                                         <td className="border p-2">{transaction.rentoutCashAmount || transaction.bookingCashAmount || transaction.returnCashAmount || 0}</td>

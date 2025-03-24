@@ -5,6 +5,8 @@ const Header = ({
     // eslint-disable-next-line react/prop-types
     title
 }) => {
+    const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
+    console.log(currentusers);
     return (
 
         <>
@@ -19,7 +21,7 @@ const Header = ({
 
                     <div className="hidden w-full md:block md:w-auto" id="navbar-multi-level">
                         <div className="flex items-center gap-4">
-                            <h2>Store Name</h2>
+                            <h2>{currentusers?.username}</h2>
                             <IoPersonCircleOutline className="text-4xl text-green-600" />
                         </div>
                     </div>
