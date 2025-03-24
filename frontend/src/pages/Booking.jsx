@@ -1,23 +1,55 @@
+import { useMemo, useState } from 'react';
 import Headers from '../components/Header.jsx';
+import useFetch from '../hooks/useFetch.jsx';
 
-const transactions = [
-    {
-        date: "01-01-2025",
-        Bills: "38",
-        Quantity: "54",
-        Advance: "3500",
-        BillValue: 10000,
-    },
-    {
-        date: "01-01-2025",
-        Bills: "33",
-        Quantity: "24",
-        Advance: "2600",
-        BillValue: 30000,
-    }
-];
+// const transactions = [
+//     {
+//         date: "01-01-2025",
+//         Bills: "38",
+//         Quantity: "54",
+//         Advance: "3500",
+//         BillValue: 10000,
+//     },
+//     {
+//         date: "01-01-2025",
+//         Bills: "33",
+//         Quantity: "24",
+//         Advance: "2600",
+//         BillValue: 30000,
+//     }
+// ];
 
 const Booking = () => {
+    // const api = `http://15.207.90.158:5005/api/GetBooking/GetBookingListDateWise?LocCode=144&DateFrom=2025-03-01&DateTo=2025-03-24`;
+    const [fromDate, setFromDate] = useState("");
+
+    const [toDate, setToDate] = useState("");
+    const [apiUrl, setApiUrl] = useState("");
+
+
+    const handleFetch = () => {
+        const baseUrl = "http://15.207.90.158:5005/api/GetBooking";
+        if (!fromDate || !toDate) {
+            return alert("select date ")
+        } else {
+            const updatedApiUrl = `${baseUrl}/GetBookingListDateWise?LocCode=144&DateFrom=${fromDate}&DateTo=${toDate}`;
+
+            // alert(apiUrl)
+            // Updating state
+            setApiUrl(updatedApiUrl);
+
+
+            console.log("API URLs Updated:", updatedApiUrl);
+        }
+
+        // Dynamically updating API URLs
+
+    };
+    const fetchOptions = useMemo(() => ({}), []);
+
+    const { data } = useFetch(apiUrl, fetchOptions);
+    console.log(data);
+
     return (
         <div>
             <Headers title={'Booking Report'} />
@@ -26,13 +58,19 @@ const Booking = () => {
                     {/* Date Inputs */}
                     <div className="flex gap-4 mb-6 w-[600px]">
                         <div className='w-full flex flex-col '>
-                            <label htmlFor="to">To *</label>
-                            <input type="date" id="to" className='border border-gray-300 py-[6px]' />
+                            <label htmlFor="from">From *</label>
+                            <input type="date" id="from"
+                                value={fromDate}
+                                onChange={(e) => setFromDate(e.target.value)} className='border border-gray-300 py-[6px]' />
                         </div>
                         <div className='w-full flex flex-col '>
-                            <label htmlFor="from">From *</label>
-                            <input type="date" id="from" className='border border-gray-300 py-[6px]' />
+                            <label htmlFor="to">To *</label>
+                            <input type="date" id="to"
+                                value={toDate}
+                                onChange={(e) => setToDate(e.target.value)} className='border border-gray-300 py-[6px]' />
                         </div>
+
+                        <button className='bg-blue-500 w-[400px] h-[40px] mt-[20px] rounded-md text-white ' onClick={handleFetch}>Fetch</button>
                     </div>
 
                     {/* Table */}
@@ -48,19 +86,20 @@ const Booking = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {transactions.length > 0 ? (
-                                    transactions.map((transaction, index) => (
+                                {data?.dataSet?.data.length > 0 ? (
+                                    data?.dataSet?.data.map((transaction, index) => (
                                         <tr key={index}>
-                                            <td className="border p-2">{transaction.date}</td>
-                                            <td className="border p-2">{transaction.Bills}</td>
-                                            <td className="border p-2">{transaction.Quantity}</td>
+                                            <td className="border p-2">{transaction.bookingDate.split('T')[0]
+                                            }</td>
+                                            <td className="border p-2">{transaction.noofbills}</td>
+                                            <td className="border p-2">{transaction.quantity}</td>
                                             <td className="border p-2">{transaction.Advance}</td>
-                                            <td className="border p-2">{transaction.BillValue}</td>
+                                            <td className="border p-2">{transaction.billValue}</td>
                                         </tr>
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan="5" className="text-center border p-4">No transactions found</td>
+                                        <td colSpan="5" className="text-center border p-4">{!toDate || !fromDate ? "Select Data range first" : "No transactions found"}</td>
                                     </tr>
                                 )}
                             </tbody>
@@ -70,16 +109,16 @@ const Booking = () => {
                                 <tr className="bg-white text-center font-semibold">
                                     <td className="border border-gray-300 px-4 py-2 text-left" colSpan="1">Total:</td>
                                     <td className="border border-gray-300 px-4 py-2">
-                                        {transactions.reduce((sum, item) => sum + parseInt(item.Bills), 0)}
+                                        {data?.dataSet?.data.reduce((sum, item) => sum + parseInt(item.noofbills), 0)}
                                     </td>
                                     <td className="border border-gray-300 px-4 py-2">
-                                        {transactions.reduce((sum, item) => sum + parseInt(item.Quantity), 0)}
+                                        {data?.dataSet?.data.reduce((sum, item) => sum + parseInt(item.quantity), 0)}
                                     </td>
                                     <td className="border border-gray-300 px-4 py-2">
-                                        {transactions.reduce((sum, item) => sum + parseInt(item.Advance), 0)}
+                                        {/* {data?.dataSet?.data.reduce((sum, item) => sum + parseInt(item.Advance), 0)} */}
                                     </td>
                                     <td className="border border-gray-300 px-4 py-2">
-                                        {transactions.reduce((sum, item) => sum + item.BillValue, 0)}
+                                        {data?.dataSet?.data.reduce((sum, item) => sum + item.billValue, 0)}
                                     </td>
                                 </tr>
                             </tfoot>
