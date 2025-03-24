@@ -1,17 +1,58 @@
 import { useState } from 'react';
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import img12 from '../../public/image.png';
+import baseUrl from '../api/api';
+import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [EmpId, setEmpId] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  const handleSubmit = (e) => {
+  const navigate = useNavigate();
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setTimeout(() => setLoading(false), 1000);
+    console.log(email, EmpId);
+    try {
+      const response = await fetch(baseUrl.baseUrl + 'user/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, EmpId }),
+      });
+
+      const data = await response.json();
+
+      console.log("API Response:", data.user); // Debugging: Log the full response
+
+      if (response.ok) {
+        // Assuming the response has `userId` and `role` at the root level
+        console.log("User Info from API:", data.user?.userId, data.user?.role);
+
+        // Dispatch the user info to Redux store
+
+        setLoading(true)
+        // Store JWT in localStorage
+        localStorage.setItem("rootfinuser", JSON.stringify(data.user));
+        // Display success message and redirect
+        alert('Login successful');
+        navigate('/'); // Redirect to the desired route
+      } else {
+        setLoading(true)
+        // Handle non-200 responses
+        console.error("Login failed:", data.message);
+        alert('Login failed: ' + (data.message || 'Unknown error'));
+        setLoading(false)
+      }
+    } catch (error) {
+      setLoading(false)
+      // Handle fetch or network errors
+      console.error('Error during login:', error);
+      alert('An error occurred during login');
+    }
+
+
   };
 
   return (
