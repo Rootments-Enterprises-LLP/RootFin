@@ -129,6 +129,15 @@ const Datewisedaybook = () => {
             (selectedSubCategory.value === "all" || t.subCategory.toLowerCase() === selectedSubCategory.value)
     );
 
+    const totalBankAmount =
+        (filteredTransactions?.reduce((sum, item) =>
+            sum +
+            (parseInt(item.bookingBankAmount, 10) || 0) +
+            (parseInt(item.rentoutBankAmount, 10) || 0) +
+            (parseInt(item.bank, 10) || 0) +
+            (parseInt(item.rentoutUPIAmount) || 0) +
+            (parseInt(item.returnBankAmount, 10) || 0),
+            0) || 0) + (parseInt(opening[0]?.bank, 10) || 0);
     return (
 
         <div>
@@ -222,7 +231,7 @@ const Datewisedaybook = () => {
                                                         <td rowSpan="2" className="border p-2">{transaction.Category}</td> {/* Merged Row */}
                                                         <td className="border p-2">{transaction.SubCategory}</td>
                                                         <td className="border p-2"></td>
-                                                        <td className="border p-2">{transaction.RsecurityAmount || transaction.securityAmount || transaction.invoiceAmount || 0}</td>
+                                                        <td className="border p-2">{transaction.securityAmount || 0}</td>
                                                         <td rowSpan="2" className="border p-2">
                                                             {transaction.securityAmount + transaction.Balance}
                                                         </td>
@@ -255,8 +264,11 @@ const Datewisedaybook = () => {
                                                     <td className="border p-2">{transaction.SubCategory || transaction.category}</td>
                                                     <td className="border p-2">{transaction.remark}</td>
                                                     <td className="border p-2">
-                                                        {parseInt(transaction.RsecurityAmount) || parseInt(transaction.securityAmount) || parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
-                                                    </td>
+
+                                                        {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
+                                                            parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
+                                                            parseInt(transaction.bookingCashAmount || 0) + parseInt(transaction.bookingBankAmount || 0) ||
+                                                            parseInt(transaction.amount || 0)}                                                    </td>
                                                     <td className="border p-2">
                                                         {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
                                                             parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
@@ -290,20 +302,30 @@ const Datewisedaybook = () => {
                             {/* Footer Totals */}
                             <tfoot>
                                 <tr className="bg-white text-center font-semibold">
-                                    <td className="border border-gray-300 px-4 py-2 text-left" colSpan="6">Total:</td>
+                                    <td className="border border-gray-300 px-4 py-2 text-left" colSpan="9">Total:</td>
 
-                                    {/* Total Invoice & Security Amount */}
-                                    <td className="border border-gray-300 px-4 py-2">
-                                        {filteredTransactions.reduce((sum, item) =>
-                                            sum +
-                                            (parseInt(item.invoiceAmount, 10) || 0) +
-                                            (parseInt(item.securityAmount, 10) || 0) +
-                                            (parseInt(item.RsecurityAmount, 10) || 0),
-                                            0)}
-                                    </td>
+                                    {/* <td className="border border-gray-300 px-4 py-2">
+                                       
+                                        {
+                                            filteredTransactions.reduce((sum, item) =>
+                                                sum +
+                                                (parseInt(item.securityAmount, 10) || 0) +
+                                                (parseInt(item.Balance, 10) || 0) +
+                                                (parseInt(item.returnCashAmount, 10) || 0) +
+                                                (parseInt(item.returnBankAmount, 10) || 0) +
+                                                (parseInt(item.rentoutCashAmount, 10) || 0) -
+                                                (parseInt(item.bookingCashAmount, 10) || 0) + 
+                                                (parseInt(item.bookingBankAmount, 10) || 0) +
+                                                (parseInt(item.amount, 10) || 0),
+                                                (parseInt(item.rentoutBankAmount, 10) || 0) +
+                                                (parseInt(item.returnBankAmount, 10) || 0),
+                                                0
+                                            )
+                                        }
 
-                                    {/* Total Transaction Amount */}
-                                    <td className="border border-gray-300 px-4 py-2">
+                                    </td> */}
+
+                                    {/* <td className="border border-gray-300 px-4 py-2">
                                         {filteredTransactions.reduce((sum, item) =>
                                             sum +
                                             (parseInt(item.bookingCashAmount, 10) || 0) +
@@ -313,16 +335,17 @@ const Datewisedaybook = () => {
                                             (parseInt(item.returnCashAmount, 10) || 0) +
                                             (parseInt(item.returnBankAmount, 10) || 0),
                                             0)}
-                                    </td>
+                                    </td> */}
 
                                     {/* Total Booking Cash Amount */}
-                                    <td className="border border-gray-300 px-4 py-2">
+                                    {/* <td className="border border-gray-300 px-4 py-2">
                                         {filteredTransactions.reduce((sum, item) => sum + (parseInt(item.bookingCashAmount, 10) || 0), 0)}
-                                    </td>
+                                    </td> */}
 
                                     {/* Total Cash (including opening balance) */}
                                     <td className="border border-gray-300 px-4 py-2">
                                         {
+
                                             filteredTransactions.reduce((sum, item) =>
                                                 sum +
                                                 (parseInt(item.bookingCashAmount, 10) || 0) +
@@ -336,13 +359,8 @@ const Datewisedaybook = () => {
                                     {/* Total Bank (including opening balance) */}
                                     <td className="border border-gray-300 px-4 py-2">
                                         {
-                                            filteredTransactions.reduce((sum, item) =>
-                                                sum +
-                                                (parseInt(item.bookingBankAmount, 10) || 0) +
-                                                (parseInt(item.rentoutBankAmount, 10) || 0) +
-                                                (parseInt(item.bank, 10) || 0) +
-                                                (parseInt(item.returnBankAmount, 10) || 0),
-                                                0) + (parseInt(opening[0]?.bank, 10) || 0)
+
+                                            totalBankAmount
                                         }
                                     </td>
                                 </tr>
