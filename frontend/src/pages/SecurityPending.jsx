@@ -4,6 +4,7 @@ import Header from "../components/Header";
 
 const SecurityPending = () => {
     // const [selectedCategory, setSelectedCategory] = useState(null);
+    const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
 
     const [selectedOption, setSelectedOption] = useState("radioDefault02");
 
@@ -31,20 +32,24 @@ const SecurityPending = () => {
                                 </label>
                             </div>
 
-                            <div className="mb-2 flex items-center gap-2">
-                                <input
-                                    className="w-5 h-5 accent-blue-500"
-                                    type="radio"
-                                    name="flexRadioDefault"
-                                    id="radioDefault02"
-                                    value="radioDefault02"
-                                    checked={selectedOption === "radioDefault02"}
-                                    onChange={(e) => setSelectedOption(e.target.value)}
-                                />
-                                <label htmlFor="radioDefault02" className="cursor-pointer">
-                                    Bank to Cash
-                                </label>
-                            </div>
+                            {currentusers.power === 'admin' &&
+                                <div className="mb-2 flex items-center gap-2">
+                                    <input
+                                        className="w-5 h-5 accent-blue-500"
+                                        type="radio"
+                                        name="flexRadioDefault"
+                                        id="radioDefault02"
+                                        value="radioDefault02"
+                                        checked={selectedOption === "radioDefault02"}
+                                        onChange={(e) => setSelectedOption(e.target.value)}
+                                    />
+                                    <label htmlFor="radioDefault02" className="cursor-pointer">
+                                        Bank to Cash
+                                    </label>
+                                </div>
+
+
+                            }
                         </div>
 
                         {/* Dropdown for Categories */}

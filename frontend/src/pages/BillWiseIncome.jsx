@@ -141,15 +141,17 @@ const DayBookInc = () => {
 
     console.log(allTransactions);
     const totalBankAmount =
-    (filteredTransactions?.reduce((sum, item) =>
-        sum +
-        (parseInt(item.bookingBankAmount, 10) || 0) +
-        (parseInt(item.rentoutBankAmount, 10) || 0) +
-        (parseInt(item.bank, 10) || 0) +
-        (parseInt(item.rentoutUPIAmount) || 0) +
-        (parseInt(item.deleteBankAmount) || 0) +
-        (parseInt(item.returnBankAmount, 10) || 0),
-        0) || 0) + (parseInt(opening[0]?.bank, 10) || 0);
+        (filteredTransactions?.reduce((sum, item) =>
+            sum +
+            (parseInt(item.bookingBankAmount, 10) || 0) +
+            (parseInt(item.rentoutBankAmount, 10) || 0) +
+            (parseInt(item.bank, 10) || 0) +
+            (parseInt(item.rentoutUPIAmount, 10) || 0) +
+            (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
+            (parseInt(item.deleteUPIAmount, 10) || 0) * -1 + // Ensure negative value is applied correctly
+            (parseInt(item.returnBankAmount, 10) || 0),
+            0
+        ) || 0) + (parseInt(opening[0]?.bank, 10) || 0);
 
     return (
         <>
@@ -179,6 +181,7 @@ const DayBookInc = () => {
                         </div>
 
                         {/* Table */}
+                        <div className="bg-white p-4 shadow-md rounded-lg ">
                         <div className="bg-white p-4 shadow-md rounded-lg ">
                         <table className="w-full border-collapse border rounded-md border-gray-300">
                             <thead className='rounded-md'>
@@ -254,21 +257,21 @@ const DayBookInc = () => {
                                                         {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
                                                             parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
                                                             parseInt(transaction.bookingCashAmount || 0) + parseInt(transaction.bookingBankAmount || 0) ||
-                                                            parseInt(transaction.amount || parseInt(transaction.advanceAmount) || 0)}                                                    </td>
+                                                            parseInt(transaction.amount || -(parseInt(transaction.advanceAmount)) || 0)}                                                    </td>
                                                     <td className="border p-2">
                                                         {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
                                                             parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
                                                             parseInt(transaction.bookingCashAmount || 0) + parseInt(transaction.bookingBankAmount || 0) ||
-                                                            parseInt(transaction.amount || parseInt(transaction.deleteBankAmount) + parseInt(transaction.deleteCashAmount) || 0)}
+                                                            parseInt(transaction.amount || -(parseInt(transaction.deleteBankAmount) + parseInt(transaction.deleteCashAmount)) || 0)}
                                                     </td>
                                                     <td className="border p-2">
                                                         {parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
                                                     </td>
                                                     <td className="border p-2">
-                                                        {parseInt(transaction.rentoutCashAmount) || parseInt(transaction.bookingCashAmount) || parseInt(transaction.returnCashAmount) || parseInt(transaction.cash) || parseInt(transaction.deleteCashAmount) || 0}
+                                                        {parseInt(transaction.rentoutCashAmount) || parseInt(transaction.bookingCashAmount) || parseInt(transaction.returnCashAmount) || parseInt(transaction.cash) || -(parseInt(transaction.deleteCashAmount)) || 0}
                                                     </td>
                                                     <td className="border p-2">
-                                                        {parseInt(transaction.rentoutBankAmount) || parseInt(transaction.bookingBankAmount) || parseInt(transaction.returnBankAmount) || parseInt(transaction.bank) || parseInt(transaction.deleteBankAmount) || 0}
+                                                        {parseInt(transaction.rentoutBankAmount) || parseInt(transaction.bookingBankAmount) || parseInt(transaction.returnBankAmount) || parseInt(transaction.bank) || -(parseInt(transaction.deleteBankAmount) + parseInt(transaction.deleteUPIAmount)) || 0}
                                                     </td>
                                                 </tr>
 
@@ -337,9 +340,11 @@ const DayBookInc = () => {
                                                 (parseInt(item.bookingCashAmount, 10) || 0) +
                                                 (parseInt(item.rentoutCashAmount, 10) || 0) +
                                                 (parseInt(item.cash, 10) || 0) +
-                                                (parseInt(item.deleteCashAmount, 10) || 0) +
+                                                (parseInt(item.deleteCashAmount, 10) || 0) * -1 + // Ensure deleteCashAmount is subtracted properly
                                                 (parseInt(item.returnCashAmount, 10) || 0),
-                                                0) + (parseInt(opening[0]?.cash, 10) || 0)
+                                                0
+                                            ) + (parseInt(opening[0]?.cash, 10) || 0)
+
                                         }
                                     </td>
 
@@ -354,6 +359,7 @@ const DayBookInc = () => {
                             </tfoot>
 
                         </table>
+                    </div>
                         </div>
                         <div>
                             <div className="p-6 flex mt-[60px]  bg-white shadow-md rounded-lg gap-[500px] w-full mx-auto">

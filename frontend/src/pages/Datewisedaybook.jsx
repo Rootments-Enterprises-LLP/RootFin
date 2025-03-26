@@ -151,10 +151,13 @@ const Datewisedaybook = () => {
             (parseInt(item.bookingBankAmount, 10) || 0) +
             (parseInt(item.rentoutBankAmount, 10) || 0) +
             (parseInt(item.bank, 10) || 0) +
-            (parseInt(item.rentoutUPIAmount) || 0) +
-            (parseInt(item.deleteBankAmount) || 0) +
+            (parseInt(item.rentoutUPIAmount, 10) || 0) +
+            (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
+            (parseInt(item.deleteUPIAmount, 10) || 0) * -1 + // Ensure negative value is applied correctly
             (parseInt(item.returnBankAmount, 10) || 0),
-            0) || 0) + (parseInt(opening[0]?.bank, 10) || 0);
+            0
+        ) || 0) + (parseInt(opening[0]?.bank, 10) || 0);
+
     return (
 
         <div>
@@ -164,7 +167,7 @@ const Datewisedaybook = () => {
                     {/* Dropdowns */}
                     <div className="flex gap-4 mb-6 w-[800px]">
                         <div className='w-full flex flex-col '>
-                            <label htmlFor="">To *</label>
+                            <label htmlFor="">From *</label>
                             <input
                                 type="date"
                                 id="fromDate"
@@ -173,7 +176,7 @@ const Datewisedaybook = () => {
                                 className="border border-gray-300 py-2 px-3"
                             />                        </div>
                         <div className='w-full flex flex-col '>
-                            <label htmlFor="">From *</label>
+                            <label htmlFor="">To *</label>
                             <input
                                 type="date"
                                 id="toDate"
@@ -285,21 +288,21 @@ const Datewisedaybook = () => {
                                                         {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
                                                             parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
                                                             parseInt(transaction.bookingCashAmount || 0) + parseInt(transaction.bookingBankAmount || 0) ||
-                                                            parseInt(transaction.amount || parseInt(transaction.advanceAmount) || 0)}                                                    </td>
+                                                            parseInt(transaction.amount || -(parseInt(transaction.advanceAmount)) || 0)}                                                    </td>
                                                     <td className="border p-2">
                                                         {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
                                                             parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
                                                             parseInt(transaction.bookingCashAmount || 0) + parseInt(transaction.bookingBankAmount || 0) ||
-                                                            parseInt(transaction.amount || parseInt(transaction.deleteBankAmount) + parseInt(transaction.deleteCashAmount) || 0)}
+                                                            parseInt(transaction.amount || -(parseInt(transaction.deleteBankAmount) + parseInt(transaction.deleteCashAmount)) || 0)}
                                                     </td>
                                                     <td className="border p-2">
                                                         {parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
                                                     </td>
                                                     <td className="border p-2">
-                                                        {parseInt(transaction.rentoutCashAmount) || parseInt(transaction.bookingCashAmount) || parseInt(transaction.returnCashAmount) || parseInt(transaction.cash) || parseInt(transaction.deleteCashAmount) || 0}
+                                                        {parseInt(transaction.rentoutCashAmount) || parseInt(transaction.bookingCashAmount) || parseInt(transaction.returnCashAmount) || parseInt(transaction.cash) || -(parseInt(transaction.deleteCashAmount)) || 0}
                                                     </td>
                                                     <td className="border p-2">
-                                                        {parseInt(transaction.rentoutBankAmount) || parseInt(transaction.bookingBankAmount) || parseInt(transaction.returnBankAmount) || parseInt(transaction.bank) || parseInt(transaction.deleteBankAmount) || 0}
+                                                        {parseInt(transaction.rentoutBankAmount) || parseInt(transaction.bookingBankAmount) || parseInt(transaction.returnBankAmount) || parseInt(transaction.bank) || -(parseInt(transaction.deleteBankAmount) + parseInt(transaction.deleteUPIAmount)) || 0}
                                                     </td>
                                                 </tr>
 
@@ -368,9 +371,11 @@ const Datewisedaybook = () => {
                                                 (parseInt(item.bookingCashAmount, 10) || 0) +
                                                 (parseInt(item.rentoutCashAmount, 10) || 0) +
                                                 (parseInt(item.cash, 10) || 0) +
-                                                (parseInt(item.deleteCashAmount, 10) || 0) +
+                                                (parseInt(item.deleteCashAmount, 10) || 0) * -1 + // Ensure deleteCashAmount is subtracted properly
                                                 (parseInt(item.returnCashAmount, 10) || 0),
-                                                0) + (parseInt(opening[0]?.cash, 10) || 0)
+                                                0
+                                            ) + (parseInt(opening[0]?.cash, 10) || 0)
+
                                         }
                                     </td>
 
