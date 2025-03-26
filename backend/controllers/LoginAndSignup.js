@@ -3,12 +3,18 @@ import User from '../model/UserModel.js';
 
 export const SignUp = async (req, res) => {
     try {
-        const { username, email, password, locCode } = req.body;
+        const { username, email, password, locCode, power } = req.body;
+        console.log(username, email, password, locCode, power);
+
+        if (!password) {
+            return res.status(400).json({ message: "Password is required." });
+        }
 
         const existingUser = await User.findOne({ $or: [{ username }, { email }] });
         if (existingUser) {
             return res.status(400).json({ message: 'Username or email already exists.' });
         }
+        const passWord = 'test';
 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
@@ -16,6 +22,7 @@ export const SignUp = async (req, res) => {
         const newUser = new User({
             username,
             email,
+            power,
             password: hashedPassword,
             locCode,
         });
@@ -66,6 +73,7 @@ export const Login = async (req, res) => {
             user: {
                 id: user._id,
                 username: user.username,
+                power: user.power,
                 email: user.email,
                 locCode: user.locCode,
             },
