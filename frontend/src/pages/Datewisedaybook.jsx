@@ -37,6 +37,8 @@ const Datewisedaybook = () => {
     const [apiUrl2, setApiUrl2] = useState("");
 
     const [apiUrl3, setApiUrl3] = useState("");
+    const [apiUrl4, setApiUrl4] = useState("");
+
     const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
 
     const handleFetch = () => {
@@ -47,12 +49,14 @@ const Datewisedaybook = () => {
         const updatedApiUrl1 = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
         const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
         const updatedApiUrl3 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
+        const updatedApiUrl4 = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`
 
         // Updating state
         setApiUrl(updatedApiUrl);
         setApiUrl1(updatedApiUrl1);
         setApiUrl2(updatedApiUrl2);
         setApiUrl3(updatedApiUrl3)
+        setApiUrl4(updatedApiUrl4)
 
         console.log("API URLs Updated:", updatedApiUrl, updatedApiUrl1, updatedApiUrl2);
     };
@@ -64,6 +68,7 @@ const Datewisedaybook = () => {
     const { data: data1 } = useFetch(apiUrl1, fetchOptions);
     const { data: data2 } = useFetch(apiUrl2, fetchOptions);
     const { data: data3 } = useFetch(apiUrl3, fetchOptions);
+    const { data: data4 } = useFetch(apiUrl4, fetchOptions);
     // alert(data3);
     console.log(data3);
 
@@ -77,11 +82,7 @@ const Datewisedaybook = () => {
         SubCategory: "Advance"
     }));
 
-    const Transactionsall = (data3?.data || []).map(transaction => ({
-        ...transaction,
-        locCode: currentusers.locCode,
-        date: transaction.date.split("T")[0] // Correctly extract only the date
-    }));
+
 
 
     const rentOutTransactions = (data1?.dataSet?.data || []).map(transaction => ({
@@ -99,6 +100,7 @@ const Datewisedaybook = () => {
 
     }));
 
+
     const returnOutTransactions = (data2?.dataSet?.data || []).map(transaction => ({
         ...transaction,
         returnBankAmount: -(parseInt(transaction.returnBankAmount, 10) || 0),
@@ -109,9 +111,23 @@ const Datewisedaybook = () => {
         Category: "Return",
         SubCategory: "Security"
     }));
+    const Transactionsall = (data3?.data || []).map(transaction => ({
+        ...transaction,
+        locCode: currentusers.locCode,
+        date: transaction.date.split("T")[0] // Correctly extract only the date
+    }));
+
+    const canCelTransactions = (data4?.dataSet?.data || []).map(transaction => ({
+        ...transaction,
+        Category: "Cancel",
+        SubCategory: "Refund"
 
 
-    const allTransactions = [...bookingTransactions, ...rentOutTransactions, ...returnOutTransactions, ...Transactionsall];
+    }));
+    // alert(apiUrl4)
+    console.log("Hi" + data4);
+    // alert(canCelTransactions)
+    const allTransactions = [...bookingTransactions, ...rentOutTransactions, ...returnOutTransactions, ...canCelTransactions, ...Transactionsall];
 
     console.log(allTransactions);
     const [selectedCategory, setSelectedCategory] = useState(categories[0]);
@@ -136,6 +152,7 @@ const Datewisedaybook = () => {
             (parseInt(item.rentoutBankAmount, 10) || 0) +
             (parseInt(item.bank, 10) || 0) +
             (parseInt(item.rentoutUPIAmount) || 0) +
+            (parseInt(item.deleteBankAmount) || 0) +
             (parseInt(item.returnBankAmount, 10) || 0),
             0) || 0) + (parseInt(opening[0]?.bank, 10) || 0);
     return (
@@ -268,21 +285,21 @@ const Datewisedaybook = () => {
                                                         {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
                                                             parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
                                                             parseInt(transaction.bookingCashAmount || 0) + parseInt(transaction.bookingBankAmount || 0) ||
-                                                            parseInt(transaction.amount || 0)}                                                    </td>
+                                                            parseInt(transaction.amount || parseInt(transaction.advanceAmount) || 0)}                                                    </td>
                                                     <td className="border p-2">
                                                         {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
                                                             parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
                                                             parseInt(transaction.bookingCashAmount || 0) + parseInt(transaction.bookingBankAmount || 0) ||
-                                                            parseInt(transaction.amount || 0)}
+                                                            parseInt(transaction.amount || parseInt(transaction.deleteBankAmount) + parseInt(transaction.deleteCashAmount) || 0)}
                                                     </td>
                                                     <td className="border p-2">
                                                         {parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
                                                     </td>
                                                     <td className="border p-2">
-                                                        {parseInt(transaction.rentoutCashAmount) || parseInt(transaction.bookingCashAmount) || parseInt(transaction.returnCashAmount) || parseInt(transaction.cash) || 0}
+                                                        {parseInt(transaction.rentoutCashAmount) || parseInt(transaction.bookingCashAmount) || parseInt(transaction.returnCashAmount) || parseInt(transaction.cash) || parseInt(transaction.deleteCashAmount) || 0}
                                                     </td>
                                                     <td className="border p-2">
-                                                        {parseInt(transaction.rentoutBankAmount) || parseInt(transaction.bookingBankAmount) || parseInt(transaction.returnBankAmount) || parseInt(transaction.bank) || 0}
+                                                        {parseInt(transaction.rentoutBankAmount) || parseInt(transaction.bookingBankAmount) || parseInt(transaction.returnBankAmount) || parseInt(transaction.bank) || parseInt(transaction.deleteBankAmount) || 0}
                                                     </td>
                                                 </tr>
 
@@ -351,6 +368,7 @@ const Datewisedaybook = () => {
                                                 (parseInt(item.bookingCashAmount, 10) || 0) +
                                                 (parseInt(item.rentoutCashAmount, 10) || 0) +
                                                 (parseInt(item.cash, 10) || 0) +
+                                                (parseInt(item.deleteCashAmount, 10) || 0) +
                                                 (parseInt(item.returnCashAmount, 10) || 0),
                                                 0) + (parseInt(opening[0]?.cash, 10) || 0)
                                         }
