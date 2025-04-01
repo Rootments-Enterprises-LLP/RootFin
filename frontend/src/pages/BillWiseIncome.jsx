@@ -39,19 +39,26 @@ const denominations = [
 const opening = [{ cash: "60000", bank: "54000" }];
 
 const DayBookInc = () => {
-
+    const date = new Date();
+    const TodayDate = `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
+    // alert(TodayDate);
     const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
     console.log(currentusers);
     const currentDate = new Date().toISOString().split("T")[0];
-    // alert(currentDate);
+
 
     const apiUrl = `http://15.207.90.158:5005/api/GetBooking/GetBookingList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
     const apiurl1 = ` http://15.207.90.158:5005/api/GetBooking/GetRentoutList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
     const apiUrl2 = `http://15.207.90.158:5005/api/GetBooking/GetReturnList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`
     const apiUrl3 = `http://15.207.90.158:5005/api/GetBooking/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`
     const apiUrl4 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
+    const apiUrl5 = `${baseUrl.baseUrl}user/saveCashBank`
 
-    // Memoizing fetch options
+    const locCode = currentusers.locCode
+
+
+
+
     const fetchOptions = useMemo(() => ({}), []);
 
     const { data } = useFetch(apiUrl, fetchOptions);
@@ -132,9 +139,11 @@ const DayBookInc = () => {
         0
     );
 
-    const closingCash = 200000;
-    const physicalCash = 190000;
-    const differences = physicalCash - closingCash;
+
+
+    // const closingCash = 200000;
+    // const physicalCash = 190000;
+    // const differences = physicalCash - closingCash;
     const filteredTransactions = allTransactions.filter(
         (t) =>
             (selectedCategory.value === "all" || t.category.toLowerCase() === selectedCategory.value) &&
@@ -155,6 +164,50 @@ const DayBookInc = () => {
             (parseInt(item.returnBankAmount, 10) || 0),
             0
         ) || 0) + (parseInt(opening[0]?.bank, 10) || 0);
+
+
+    const totalCash = (
+        filteredTransactions?.reduce((sum, item) =>
+            sum +
+            (parseInt(item.bookingCashAmount, 10) || 0) +
+            (parseInt(item.rentoutCashAmount, 10) || 0) +
+            (parseInt(item.cash, 10) || 0) +
+            ((parseInt(item.deleteCashAmount, 10) || 0) * -1) + // Ensure deletion is properly subtracted
+            (parseInt(item.returnCashAmount, 10) || 0),
+            0
+        ) + (parseInt(opening[0]?.cash, 10) || 0)
+    );
+
+    const savedData = {
+        TodayDate,
+        locCode,
+        totalCash,
+        totalAmount,
+        totalBankAmount
+
+    }
+    console.log(savedData);
+
+    const CreateCashBank = async () => {
+        try {
+            const response = await fetch(apiUrl5, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(savedData),
+            });
+
+            if (!response.ok) {
+                throw new Error('Error saving data');
+            }
+
+            const data = await response.json();
+            console.log("Data saved successfully:", data);
+        } catch (error) {
+            console.error("Error saving data:", error);
+        }
+    };
 
     return (
         <>
@@ -338,15 +391,7 @@ const DayBookInc = () => {
                                             <td className="border border-gray-300 px-4 py-2">
                                                 {
 
-                                                    filteredTransactions.reduce((sum, item) =>
-                                                        sum +
-                                                        (parseInt(item.bookingCashAmount, 10) || 0) +
-                                                        (parseInt(item.rentoutCashAmount, 10) || 0) +
-                                                        (parseInt(item.cash, 10) || 0) +
-                                                        (parseInt(item.deleteCashAmount, 10) || 0) * -1 + // Ensure deleteCashAmount is subtracted properly
-                                                        (parseInt(item.returnCashAmount, 10) || 0),
-                                                        0
-                                                    ) + (parseInt(opening[0]?.cash, 10) || 0)
+                                                    totalCash
 
                                                 }
                                             </td>
@@ -395,20 +440,25 @@ const DayBookInc = () => {
                                     <div className="mt-6 border p-4 rounded-md">
                                         <div className="flex justify-between">
                                             <span>Closing Cash</span>
-                                            <span className="font-bold">{closingCash.toLocaleString()}</span>
+                                            <span className="font-bold">{totalCash}</span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span>Physical Cash</span>
-                                            <span className="font-bold">{physicalCash.toLocaleString()}</span>
+                                            <span className="font-bold">{totalAmount}</span>
                                         </div>
                                         <div className="flex justify-between text-red-600">
                                             <span>Differences</span>
-                                            <span className="font-bold">{differences.toLocaleString()}</span>
+                                            <span className="font-bold">{(totalCash - totalAmount) * -1}</span>
                                         </div>
                                     </div>
-                                    <button className="mt-6 w-full bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
-                                        <span>📥 Download & Email</span>
-                                    </button>
+                                    <div className='flex gap-2'>
+                                        <button onClick={CreateCashBank} className="mt-6 w-full cursor-pointer bg-yellow-400 text-white py-2 rounded-lg flex items-center justify-center gap-2">
+                                            <span>💾 save </span>
+                                        </button>
+                                        <button className="mt-6 w-full cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
+                                            <span>📥 share pdf</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
