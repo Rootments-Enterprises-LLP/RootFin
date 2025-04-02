@@ -1,5 +1,5 @@
 import Headers from '../components/Header.jsx';
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Select from "react-select";
 import useFetch from '../hooks/useFetch.jsx';
 import baseUrl from '../api/api.js';
@@ -36,14 +36,19 @@ const denominations = [
     { label: "Coins", value: 1 },
 ];
 
-const opening = [{ cash: "60000", bank: "54000" }];
+// const opening = [{ cash: "60000", bank: "54000" }];
 
 const DayBookInc = () => {
+    const [preOpen, setPreOpen] = useState([])
     const date = new Date();
+    const previousDate = new Date(date);
+    previousDate.setDate(date.getDate() - 1);
     const TodayDate = `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
+    const previousDate1 = `${String(previousDate.getDate()).padStart(2, '0')}-${String(previousDate.getMonth() + 1).padStart(2, '0')}-${previousDate.getFullYear()}`;
+
     // alert(TodayDate);
     const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
-    console.log(currentusers);
+    // console.log(currentusers);
     const currentDate = new Date().toISOString().split("T")[0];
 
 
@@ -53,6 +58,8 @@ const DayBookInc = () => {
     const apiUrl3 = `http://15.207.90.158:5005/api/GetBooking/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`
     const apiUrl4 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
     const apiUrl5 = `${baseUrl.baseUrl}user/saveCashBank`
+    const apiUrl6 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${previousDate1}`
+
 
     const locCode = currentusers.locCode
 
@@ -121,7 +128,7 @@ const DayBookInc = () => {
 
     const allTransactions = [...bookingTransactions, ...rentOutTransactions, ...returnOutTransactions, ...canCelTransactions, ...Transactionsall];
 
-    console.log(allTransactions);
+    // console.log(allTransactions);
 
 
     const [selectedCategory, setSelectedCategory] = useState(categories[0]);
@@ -150,7 +157,7 @@ const DayBookInc = () => {
             (selectedSubCategory.value === "all" || t.subCategory.toLowerCase() === selectedSubCategory.value)
     );
 
-    console.log(allTransactions);
+    // console.log(allTransactions);
     const totalBankAmount =
         (filteredTransactions?.reduce((sum, item) =>
             sum +
@@ -163,7 +170,7 @@ const DayBookInc = () => {
             (parseInt(item.deleteUPIAmount, 10) || 0) * -1 + // Ensure negative value is applied correctly
             (parseInt(item.returnBankAmount, 10) || 0),
             0
-        ) || 0) + (parseInt(opening[0]?.bank, 10) || 0);
+        ) || 0) + (parseInt(preOpen?.bank, 10) || 0);
 
 
     const totalCash = (
@@ -175,7 +182,7 @@ const DayBookInc = () => {
             ((parseInt(item.deleteCashAmount, 10) || 0) * -1) + // Ensure deletion is properly subtracted
             (parseInt(item.returnCashAmount, 10) || 0),
             0
-        ) + (parseInt(opening[0]?.cash, 10) || 0)
+        ) + (parseInt(preOpen?.cash, 10) || 0)
     );
 
     const savedData = {
@@ -186,7 +193,7 @@ const DayBookInc = () => {
         totalBankAmount
 
     }
-    console.log(savedData);
+    // console.log(savedData);
 
     const CreateCashBank = async () => {
         try {
@@ -208,6 +215,31 @@ const DayBookInc = () => {
             console.error("Error saving data:", error);
         }
     };
+
+
+    const GetCreateCashBank = async () => {
+        try {
+            const response = await fetch(apiUrl6, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Error saving data');
+            }
+
+            const data = await response.json();
+            console.log("Data saved successfully:", data);
+            setPreOpen(data?.data)
+        } catch (error) {
+            console.error("Error saving data:", error);
+        }
+    };
+    useEffect(() => {
+        GetCreateCashBank()
+    }, [])
 
     return (
         <>
@@ -259,8 +291,9 @@ const DayBookInc = () => {
                                         {/* Opening Balance */}
                                         <tr className="bg-gray-100">
                                             <td colSpan="9" className="border p-2 font-bold">OPENING BALANCE</td>
-                                            <td className="border p-2 font-bold">{Number(opening[0].cash)}</td>
-                                            <td className="border p-2 font-bold">{Number(opening[0].bank)}</td>
+                                            <td className="border p-2 font-bold">{preOpen.cash
+                                            }</td>
+                                            <td className="border p-2 font-bold">{preOpen.bank}</td>
                                         </tr>
 
                                         {/* Transactions */}
