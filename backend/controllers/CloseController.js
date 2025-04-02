@@ -43,3 +43,29 @@ export const CloseController = async (req, res) => {
         });
     }
 };
+
+export const GetCloseController = async (req, res) => {
+    try {
+
+        const { date, locCode } = req.query
+        console.log(date, locCode);
+
+
+        const data = await CloseTransaction.findOne({
+            date, locCode
+        })
+        if (!data) {
+            return res.status(404).message({
+                message: "No Data Found"
+            })
+        }
+        res.status(200).json({
+            message: "data Found",
+            data: data
+        })
+    } catch (error) {
+        res.status(500).json({
+            message: "Internal server Error"
+        })
+    }
+}
