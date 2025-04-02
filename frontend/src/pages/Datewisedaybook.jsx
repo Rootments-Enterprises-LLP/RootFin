@@ -1,5 +1,5 @@
 import Headers from '../components/Header.jsx';
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Select from "react-select";
 import useFetch from '../hooks/useFetch.jsx';
 import baseUrl from '../api/api.js';
@@ -27,7 +27,7 @@ const subCategories = [
 
 
 
-const opening = [{ cash: "60000", bank: "54000" }];
+// const opening = [{ cash: "60000", bank: "54000" }];
 const Datewisedaybook = () => {
 
     const [fromDate, setFromDate] = useState("");
@@ -35,13 +35,19 @@ const Datewisedaybook = () => {
     const [apiUrl, setApiUrl] = useState("");
     const [apiUrl1, setApiUrl1] = useState("");
     const [apiUrl2, setApiUrl2] = useState("");
+    const [preOpen, setPreOpen] = useState([])
 
     const [apiUrl3, setApiUrl3] = useState("");
     const [apiUrl4, setApiUrl4] = useState("");
+    const [apiUrl5, setApiUrl5] = useState("");
 
     const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
 
     const handleFetch = () => {
+        const formatDate = (dateString) => {
+            const [year, month, day] = dateString.split("-");
+            return `${day}-${month}-${year}`;
+        };
         const baseUrl1 = "http://15.207.90.158:5005/api/GetBooking";
 
         // Dynamically updating API URLs
@@ -50,16 +56,44 @@ const Datewisedaybook = () => {
         const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
         const updatedApiUrl3 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
         const updatedApiUrl4 = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`
-
+        const formattedDate = formatDate(toDate);
+        const updatedApiUrl5 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`
+        // alert(updatedApiUrl5)
         // Updating state
         setApiUrl(updatedApiUrl);
         setApiUrl1(updatedApiUrl1);
         setApiUrl2(updatedApiUrl2);
         setApiUrl3(updatedApiUrl3)
         setApiUrl4(updatedApiUrl4)
+        setApiUrl5(updatedApiUrl5)
+        GetCreateCashBank()
 
-        console.log("API URLs Updated:", updatedApiUrl2);
+        // console.log("API URLs Updated:", updatedApiUrl2);
     };
+
+
+    const GetCreateCashBank = async () => {
+        try {
+            const response = await fetch(apiUrl5, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Error saving data');
+            }
+
+            const data = await response.json();
+            console.log("Data saved successfully:", data);
+            setPreOpen(data?.data)
+        } catch (error) {
+            console.error("Error saving data:", error);
+        }
+    };
+    useEffect(() => {
+    }, [])
 
     // Memoizing fetch options
     const fetchOptions = useMemo(() => ({}), []);
@@ -70,7 +104,7 @@ const Datewisedaybook = () => {
     const { data: data3 } = useFetch(apiUrl3, fetchOptions);
     const { data: data4 } = useFetch(apiUrl4, fetchOptions);
     // alert(data3);
-    console.log(data2);
+    // console.log(data2);
 
 
     const bookingTransactions = (data?.dataSet?.data || []).map(transaction => ({
@@ -126,11 +160,11 @@ const Datewisedaybook = () => {
 
     }));
     // alert(apiUrl4)
-    console.log("Hi" + data4);
+    // console.log("Hi" + data4);
     // alert(canCelTransactions)
     const allTransactions = [...bookingTransactions, ...rentOutTransactions, ...returnOutTransactions, ...canCelTransactions, ...Transactionsall];
 
-    console.log(allTransactions);
+    // console.log(allTransactions);
     const [selectedCategory, setSelectedCategory] = useState(categories[0]);
     const [selectedSubCategory, setSelectedSubCategory] = useState(subCategories[0]);
 
@@ -158,8 +192,20 @@ const Datewisedaybook = () => {
             (parseInt(item.deleteUPIAmount, 10) || 0) * -1 + // Ensure negative value is applied correctly
             (parseInt(item.returnBankAmount, 10) || 0),
             0
-        ) || 0) + (parseInt(opening[0]?.bank, 10) || 0);
+        ) || 0) + (parseInt(preOpen?.bank, 10) || 0);
 
+    const totalCash = (
+        filteredTransactions?.reduce((sum, item) =>
+            sum +
+            (parseInt(item.bookingCashAmount, 10) || 0) +
+            (parseInt(item.rentoutCashAmount, 10) || 0) +
+            (parseInt(item.cash, 10) || 0) +
+            ((parseInt(item.deleteCashAmount, 10) || 0) * -1) + // Ensure deletion is properly subtracted
+            (parseInt(item.returnCashAmount, 10) || 0),
+            0
+        ) + (parseInt(preOpen?.cash, 10) || 0)
+    );
+    // alert(preOpen.bank)
     return (
 
         <div>
@@ -237,8 +283,9 @@ const Datewisedaybook = () => {
                                 {/* Opening Balance */}
                                 <tr className="bg-gray-100">
                                     <td colSpan="9" className="border p-2 font-bold">OPENING BALANCE</td>
-                                    <td className="border p-2 font-bold">{Number(opening[0].cash)}</td>
-                                    <td className="border p-2 font-bold">{Number(opening[0].bank)}</td>
+                                    <td className="border p-2 font-bold">{preOpen.cash
+                                    }</td>
+                                    <td className="border p-2 font-bold">{preOpen.bank}</td>
                                 </tr>
 
                                 {/* Transactions */}
@@ -369,15 +416,7 @@ const Datewisedaybook = () => {
                                     <td className="border border-gray-300 px-4 py-2">
                                         {
 
-                                            filteredTransactions.reduce((sum, item) =>
-                                                sum +
-                                                (parseInt(item.bookingCashAmount, 10) || 0) +
-                                                (parseInt(item.rentoutCashAmount, 10) || 0) +
-                                                (parseInt(item.cash, 10) || 0) +
-                                                (parseInt(item.deleteCashAmount, 10) || 0) * -1 + // Ensure deleteCashAmount is subtracted properly
-                                                (parseInt(item.returnCashAmount, 10) || 0),
-                                                0
-                                            ) + (parseInt(opening[0]?.cash, 10) || 0)
+                                            totalCash
 
                                         }
                                     </td>

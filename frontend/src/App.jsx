@@ -30,6 +30,7 @@ const App = () => {
           <Route path="/RentOutReport" element={currentuser ? <DayBook /> : <Navigate to="/login" />} />
           <Route path="/Income&Expenses" element={currentuser ? <SecurityReturn /> : <Navigate to="/login" />} />
           <Route path="/CashBankLedger" element={currentuser ? <SecurityPending /> : <Navigate to="/login" />} />
+
         </Routes>
       </div>
     </div>

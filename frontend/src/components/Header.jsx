@@ -1,12 +1,24 @@
 
 import { IoPersonCircleOutline } from "react-icons/io5";
 import Rootments from '../../public/Rootments.jpg'
+import { useState } from "react";
 const Header = ({
     // eslint-disable-next-line react/prop-types
     title
 }) => {
     const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
     console.log(currentusers);
+    const [logOut, setlogOut] = useState(false)
+    const HanndleRemove = () => {
+        try {
+            localStorage.removeItem("rootfinuser");
+
+            window.location.reload();
+
+        } catch (error) {
+            throw new Error(error)
+        }
+    }
     return (
 
         <>
@@ -19,14 +31,22 @@ const Header = ({
                         <span className="self-center text-2xl font-semibold whitespace-nowrap text-black">{title}</span>
                     </a>
 
-                    <div className="hidden w-full md:block md:w-auto" id="navbar-multi-level">
+                    <div onClick={() => setlogOut((prev) => !prev)}
+                        className="hidden cursor-pointer w-full md:block md:w-auto" id="navbar-multi-level" >
                         <div className="flex items-center gap-4">
                             <h2>{currentusers?.username}</h2>
-                            <IoPersonCircleOutline className="text-4xl text-green-600" />
+                            <IoPersonCircleOutline className="text-4xl  text-green-600" />
                         </div>
+
                     </div>
                 </div>
+                {logOut && <div className="flex justify-center text-center w-30 h-20 rounded-md shadow-2xl bg-slate-200 absolute right-5 ">
+
+                    <button className="px-3 h-10 mt-[20px] bg-red-500 text-white rounded-md hover:bg-red-600 cursor-pointer" onClick={HanndleRemove}>Logout</button>
+
+                </div>}
             </nav>
+
 
         </>
 
