@@ -17,7 +17,7 @@ export const CloseController = async (req, res) => {
         const existingClose = await CloseTransaction.findOne({ $and: [{ locCode }, { date }] });
 
         if (existingClose) {
-            return res.status(500).json({
+            return res.status(401).json({
                 message: "Already saved the cash",
             });
         }
