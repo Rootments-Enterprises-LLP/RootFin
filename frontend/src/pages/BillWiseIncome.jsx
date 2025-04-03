@@ -56,16 +56,16 @@ const DayBookInc = () => {
     const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
     // console.log(currentusers);
     const currentDate = new Date().toISOString().split("T")[0];
-// Convert "04-04-2025" to "2025-04-04"
-const formatDate = (inputDate) => {
-    const [day, month, year] = inputDate.split("-");
-    return `${year}-${month}-${day}`;
-};
+    // Convert "04-04-2025" to "2025-04-04"
+    const formatDate = (inputDate) => {
+        const [day, month, year] = inputDate.split("-");
+        return `${year}-${month}-${day}`;
+    };
 
-// Example usage:
+    // Example usage:
 
-const formattedDate = formatDate(previousDate1); // "2025-04-04"
-console.log(formattedDate);
+    const formattedDate = formatDate(previousDate1); // "2025-04-04"
+    console.log(formattedDate);
 
 
     const apiUrl = `http://15.207.90.158:5005/api/GetBooking/GetBookingList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
@@ -501,7 +501,10 @@ console.log(formattedDate);
 
 
                             <div>
-                                <div className="p-6 flex mt-[60px]  bg-white shadow-md rounded-lg gap-[500px] w-full mx-auto">
+                                <div className="p-6 flex  mt-[60px] bg-white relative shadow-md rounded-lg gap-[500px] w-full mx-auto">
+                                    <div className='absolute top-2 right-2'>
+                                        <button className='h-[50px] bg-blue-500 px-2 text-white  rounded-md hover:bg-blue-800 cursor-pointer' onClick={() => window.location.reload()}>Click Before save</button>
+                                    </div>
                                     <div className=''>
                                         <div className="grid grid-cols-3 gap-4 border-b pb-4">
                                             <div className="font-bold">Denomination</div>
@@ -522,6 +525,7 @@ console.log(formattedDate);
                                                 </React.Fragment>
                                             ))}
                                         </div>
+
                                         <div className="flex justify-between mt-4 text-lg font-semibold">
                                             <span>TOTAL</span>
                                             <span>{totalAmount}</span>
