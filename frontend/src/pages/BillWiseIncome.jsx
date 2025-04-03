@@ -8,24 +8,27 @@ import { useRef } from "react";
 const categories = [
     { value: "all", label: "All" },
     { value: "booking", label: "Booking" },
-    { value: "rent_out", label: "Rent Out" },
-    { value: "refund", label: "Refund" },
-    { value: "income", label: "Income" },
-    { value: "expense", label: "Expense" },
-    { value: "cash_to_bank", label: "Cash to Bank" },
-];
+    { value: "RentOut", label: "Rent Out" },
+    { value: "Refund", label: "Refund" },
+    { value: "Return", label: "Return" },
+    { value: "Cancel", label: "Cancel" },
 
+    { value: "income", label: "income" },
+    { value: "expense", label: "Expense" },
+    { value: "money transfer", label: "Cash to Bank" },
+];
 
 const subCategories = [
     { value: "all", label: "All" },
     { value: "advance", label: "Advance" },
-    { value: "bal_payable_amt", label: "Bal. Payable Amt" },
+    { value: "Balance Payable", label: "Balance Payable" },
     { value: "security", label: "Security" },
-    { value: "cancellation_refund", label: "Cancellation Refund" },
-    { value: "security_refund", label: "Security Refund" },
+    { value: "cancellation Refund", label: "Cancellation Refund" },
+    { value: "security Refund", label: "Security Refund" },
     { value: "compensation", label: "Compensation" },
-    { value: "petty_expense", label: "Petty Expense" },
+    { value: "petty expenses", label: "petty expenses" },
 ];
+
 
 
 const denominations = [
@@ -102,7 +105,7 @@ const DayBookInc = () => {
 
     const { data: data4 } = useFetch(apiUrl4, fetchOptions);
 
-    console.log(data1);
+    // console.log(data1);
 
     const bookingTransactions = (data?.dataSet?.data || []).map(transaction => ({
         ...transaction,
@@ -117,7 +120,7 @@ const DayBookInc = () => {
     const canCelTransactions = (data3?.dataSet?.data || []).map(transaction => ({
         ...transaction,
         Category: "Cancel",
-        SubCategory: "Refund"
+        SubCategory: "cancellation Refund"
 
 
     }));
@@ -149,7 +152,7 @@ const DayBookInc = () => {
         advanceAmount: parseInt(transaction.advanceAmount, 10) || 0,
         RsecurityAmount: -(parseInt(transaction.securityAmount, 10) || 0),
         Category: "Return",
-        SubCategory: "Security",
+        SubCategory: "security Refund",
     }));
 
 
@@ -178,11 +181,16 @@ const DayBookInc = () => {
     // const closingCash = 200000;
     // const physicalCash = 190000;
     // const differences = physicalCash - closingCash;
-    const filteredTransactions = allTransactions.filter(
-        (t) =>
-            (selectedCategory.value === "all" || t.category.toLowerCase() === selectedCategory.value) &&
-            (selectedSubCategory.value === "all" || t.subCategory.toLowerCase() === selectedSubCategory.value)
+    const selectedCategoryValue = selectedCategory?.value?.toLowerCase() || "all";
+    const selectedSubCategoryValue = selectedSubCategory?.value?.toLowerCase() || "all";
+
+    const filteredTransactions = allTransactions.filter((t) =>
+        (selectedCategoryValue === "all" || (t.category?.toLowerCase() === selectedCategoryValue || t.Category?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue)) &&
+        (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
     );
+
+
+
 
     // console.log(allTransactions);
     const totalBankAmount =
@@ -200,17 +208,17 @@ const DayBookInc = () => {
         ) || 0) + (parseInt(preOpen?.bank, 10) || 0);
 
 
-        const totalCash = (
-            filteredTransactions?.reduce((sum, item) =>
-                sum +
-                (parseInt(item.bookingCashAmount, 10) || 0) +
-                (parseInt(item.rentoutCashAmount, 10) || 0) +
-                (parseInt(item.cash, 10) || 0) +
-                ((parseInt(item.deleteCashAmount, 10) || 0) * -1) + // Ensure deletion is properly subtracted
-                (parseInt(item.returnCashAmount, 10) || 0),
-                0
-            ) + (parseInt(preOpen?.cash, 10) || 0)
-        );
+    const totalCash = (
+        filteredTransactions?.reduce((sum, item) =>
+            sum +
+            (parseInt(item.bookingCashAmount, 10) || 0) +
+            (parseInt(item.rentoutCashAmount, 10) || 0) +
+            (parseInt(item.cash, 10) || 0) +
+            ((parseInt(item.deleteCashAmount, 10) || 0) * -1) + // Ensure deletion is properly subtracted
+            (parseInt(item.returnCashAmount, 10) || 0),
+            0
+        ) + (parseInt(preOpen?.cash, 10) || 0)
+    );
 
     const savedData = {
         TodayDate,
@@ -233,11 +241,14 @@ const DayBookInc = () => {
             });
 
             if (!response.ok) {
-                throw new Error('Error saving data');
+
+                return alert("Error: Data already saved for today.");
+
             }
 
             const data = await response.json();
             console.log("Data saved successfully:", data);
+            alert("Data saved successfully")
         } catch (error) {
             console.error("Error saving data:", error);
         }

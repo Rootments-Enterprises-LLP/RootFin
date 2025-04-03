@@ -7,22 +7,25 @@ import baseUrl from '../api/api.js';
 const categories = [
     { value: "all", label: "All" },
     { value: "booking", label: "Booking" },
-    { value: "rent_out", label: "Rent Out" },
-    { value: "refund", label: "Refund" },
-    { value: "income", label: "Income" },
+    { value: "RentOut", label: "Rent Out" },
+    { value: "Refund", label: "Refund" },
+    { value: "Return", label: "Return" },
+    { value: "Cancel", label: "Cancel" },
+
+    { value: "income", label: "income" },
     { value: "expense", label: "Expense" },
-    { value: "cash_to_bank", label: "Cash to Bank" },
+    { value: "money transfer", label: "Cash to Bank" },
 ];
 
 const subCategories = [
     { value: "all", label: "All" },
     { value: "advance", label: "Advance" },
-    { value: "bal_payable_amt", label: "Bal. Payable Amt" },
+    { value: "Balance Payable", label: "Balance Payable" },
     { value: "security", label: "Security" },
-    { value: "cancellation_refund", label: "Cancellation Refund" },
-    { value: "security_refund", label: "Security Refund" },
+    { value: "cancellation Refund", label: "Cancellation Refund" },
+    { value: "security Refund", label: "Security Refund" },
     { value: "compensation", label: "Compensation" },
-    { value: "petty_expense", label: "Petty Expense" },
+    { value: "petty expenses", label: "petty expenses" },
 ];
 
 
@@ -144,7 +147,7 @@ const Datewisedaybook = () => {
         advanceAmount: parseInt(transaction.advanceAmount, 10) || 0,
         RsecurityAmount: -(parseInt(transaction.securityAmount, 10) || 0),
         Category: "Return",
-        SubCategory: "Security"
+        SubCategory: "security Refund"
     }));
     const Transactionsall = (data3?.data || []).map(transaction => ({
         ...transaction,
@@ -155,7 +158,7 @@ const Datewisedaybook = () => {
     const canCelTransactions = (data4?.dataSet?.data || []).map(transaction => ({
         ...transaction,
         Category: "Cancel",
-        SubCategory: "Refund"
+        SubCategory: "cancellation Refund"
 
 
     }));
@@ -174,11 +177,14 @@ const Datewisedaybook = () => {
 
 
     // Filter transactions based on category & subcategory
-    const filteredTransactions = allTransactions.filter(
-        (t) =>
-            (selectedCategory.value === "all" || t.category.toLowerCase() === selectedCategory.value) &&
-            (selectedSubCategory.value === "all" || t.subCategory.toLowerCase() === selectedSubCategory.value)
+    const selectedCategoryValue = selectedCategory?.value?.toLowerCase() || "all";
+    const selectedSubCategoryValue = selectedSubCategory?.value?.toLowerCase() || "all";
+
+    const filteredTransactions = allTransactions.filter((t) =>
+        (selectedCategoryValue === "all" || (t.category?.toLowerCase() === selectedCategoryValue || t.Category?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue)) &&
+        (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue ||t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
     );
+
 
     const totalBankAmount =
         (filteredTransactions?.reduce((sum, item) =>
