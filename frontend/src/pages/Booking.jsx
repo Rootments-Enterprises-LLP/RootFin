@@ -38,7 +38,7 @@ const Booking = () => {
             // Updating state
             setApiUrl(updatedApiUrl);
 
-
+            // alert(updatedApiUrl)
             console.log("API URLs Updated:", updatedApiUrl);
         }
 
@@ -46,7 +46,7 @@ const Booking = () => {
 
     };
     const fetchOptions = useMemo(() => ({}), []);
-
+  
     const { data } = useFetch(apiUrl, fetchOptions);
     console.log(data);
 
@@ -93,7 +93,7 @@ const Booking = () => {
                                             }</td>
                                             <td className="border p-2">{transaction.noofbills}</td>
                                             <td className="border p-2">{transaction.quantity}</td>
-                                            <td className="border p-2">{transaction.Advance}</td>
+                                            <td className="border p-2">{transaction.advanceAmount}</td>
                                             <td className="border p-2">{transaction.billValue}</td>
                                         </tr>
                                     ))
@@ -107,15 +107,16 @@ const Booking = () => {
                             {/* Footer Totals */}
                             <tfoot>
                                 <tr className="bg-white text-center font-semibold">
-                                    <td className="border border-gray-300 px-4 py-2 text-left" colSpan="1">Total:</td>
+                                    <td className="border border-gray-300 px-4 py-2 text-left" colSpan="0">Total:</td>
                                     <td className="border border-gray-300 px-4 py-2">
                                         {data?.dataSet?.data.reduce((sum, item) => sum + parseInt(item.noofbills), 0)}
                                     </td>
                                     <td className="border border-gray-300 px-4 py-2">
                                         {data?.dataSet?.data.reduce((sum, item) => sum + parseInt(item.quantity), 0)}
                                     </td>
+                                    
                                     <td className="border border-gray-300 px-4 py-2">
-                                        {/* {data?.dataSet?.data.reduce((sum, item) => sum + parseInt(item.Advance), 0)} */}
+                                    {data?.dataSet?.data.reduce((sum, item) => sum + parseInt(item.advanceAmount), 0)}
                                     </td>
                                     <td className="border border-gray-300 px-4 py-2">
                                         {data?.dataSet?.data.reduce((sum, item) => sum + item.billValue, 0)}
