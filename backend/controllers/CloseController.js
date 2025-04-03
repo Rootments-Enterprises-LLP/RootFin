@@ -2,31 +2,37 @@ import CloseTransaction from "../model/Closing.js";
 
 export const CloseController = async (req, res) => {
     try {
-        const { totalBankAmount: bank, totalAmount: cash, locCode, TodayDate: date } = req.body;
+        const { totalBankAmount: bank, totalAmount: cash, locCode, date } = req.body;
 
-        // Check if all fields are present
-        if (!bank || !cash || !locCode || !date) {
+        if (bank === undefined || cash === undefined || !locCode) {
             return res.status(400).json({
                 message: "All fields are required",
             });
         }
 
-        console.log(bank, cash, locCode, date);
+        // Get today's date in YYYY-MM-DD format
+        const today = new Date().toISOString().split("T")[0];
 
-        // Check if the data already exists for the given locCode and date
-        const existingClose = await CloseTransaction.findOne({ $and: [{ locCode }, { date }] });
+        console.log("Today's Date:", today, date);
+
+        // Check if an entry already exists for today's date
+        const existingClose = await CloseTransaction.findOne({
+            locCode,
+            date: today,
+        });
 
         if (existingClose) {
             return res.status(401).json({
-                message: "Already saved the cash",
+                message: "Already saved the cash for today",
             });
         }
 
+        // Save the transaction with today's date
         const CloseCashBank = new CloseTransaction({
             bank,
             cash,
             locCode,
-            date,
+            date: today, // Ensure date is today
         });
 
         await CloseCashBank.save();
@@ -43,6 +49,7 @@ export const CloseController = async (req, res) => {
         });
     }
 };
+
 
 export const GetCloseController = async (req, res) => {
     try {
