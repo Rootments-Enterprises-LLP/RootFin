@@ -56,15 +56,25 @@ const DayBookInc = () => {
     const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
     // console.log(currentusers);
     const currentDate = new Date().toISOString().split("T")[0];
+// Convert "04-04-2025" to "2025-04-04"
+const formatDate = (inputDate) => {
+    const [day, month, year] = inputDate.split("-");
+    return `${year}-${month}-${day}`;
+};
+
+// Example usage:
+
+const formattedDate = formatDate(previousDate1); // "2025-04-04"
+console.log(formattedDate);
 
 
     const apiUrl = `http://15.207.90.158:5005/api/GetBooking/GetBookingList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
-    const apiurl1 = ` http://15.207.90.158:5005/api/GetBooking/GetRentoutList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
+    const apiurl1 = `http://15.207.90.158:5005/api/GetBooking/GetRentoutList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
     const apiUrl2 = `http://15.207.90.158:5005/api/GetBooking/GetReturnList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`
     const apiUrl3 = `http://15.207.90.158:5005/api/GetBooking/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`
     const apiUrl4 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
     const apiUrl5 = `${baseUrl.baseUrl}user/saveCashBank`
-    const apiUrl6 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${previousDate1}`
+    const apiUrl6 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`
 
 
     const locCode = currentusers.locCode
@@ -93,7 +103,7 @@ const DayBookInc = () => {
     };
 
 
-
+    // alert(previousDate1)
 
 
     const fetchOptions = useMemo(() => ({}), []);
@@ -240,17 +250,18 @@ const DayBookInc = () => {
                 body: JSON.stringify(savedData),
             });
 
-            if (!response.ok) {
-
+            if (response.status === 401) {
                 return alert("Error: Data already saved for today.");
-
+            } else if (!response.ok) {
+                return alert("Error: Failed to save data.");
             }
 
             const data = await response.json();
             console.log("Data saved successfully:", data);
-            alert("Data saved successfully")
+            alert("Data saved successfully");
         } catch (error) {
             console.error("Error saving data:", error);
+            alert("An unexpected error occurred.");
         }
     };
 
@@ -263,6 +274,7 @@ const DayBookInc = () => {
                     'Content-Type': 'application/json',
                 },
             });
+            // alert(apiUrl6)
 
             if (!response.ok) {
                 throw new Error('Error saving data');

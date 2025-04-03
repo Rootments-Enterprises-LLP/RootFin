@@ -47,42 +47,36 @@ const Datewisedaybook = () => {
     const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
 
     const handleFetch = () => {
-        const formatDate = (dateString) => {
-            const [year, month, day] = dateString.split("-");
-            return `${day}-${month}-${year}`;
-        };
-        const baseUrl1 = "http://15.207.90.158:5005/api/GetBooking";
 
-        // Dynamically updating API URLs
+        const baseUrl1 = "http://15.207.90.158:5005/api/GetBooking";
         const updatedApiUrl = `${baseUrl1}/GetBookingList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
         const updatedApiUrl1 = `${baseUrl1}/GetRentoutList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
         const updatedApiUrl2 = `${baseUrl1}/GetReturnList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
         const updatedApiUrl3 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`;
         const updatedApiUrl4 = `${baseUrl1}/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${fromDate}&DateTo=${toDate}`
-        const formattedDate = formatDate(toDate);
-        const updatedApiUrl5 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`
-        // alert(updatedApiUrl5)
-        // Updating state
+        const updatedApiUrl5 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${toDate}`
+
         setApiUrl(updatedApiUrl);
         setApiUrl1(updatedApiUrl1);
         setApiUrl2(updatedApiUrl2);
         setApiUrl3(updatedApiUrl3)
         setApiUrl4(updatedApiUrl4)
         setApiUrl5(updatedApiUrl5)
-        GetCreateCashBank()
+        GetCreateCashBank(updatedApiUrl5)
 
         // console.log("API URLs Updated:", updatedApiUrl2);
     };
 
 
-    const GetCreateCashBank = async () => {
+    const GetCreateCashBank = async (api) => {
         try {
-            const response = await fetch(apiUrl5, {
+            const response = await fetch(api, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                 },
             });
+            // alert(apiUrl5)
 
             if (!response.ok) {
                 throw new Error('Error saving data');
@@ -182,7 +176,7 @@ const Datewisedaybook = () => {
 
     const filteredTransactions = allTransactions.filter((t) =>
         (selectedCategoryValue === "all" || (t.category?.toLowerCase() === selectedCategoryValue || t.Category?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue)) &&
-        (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue ||t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
+        (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
     );
 
 
