@@ -4,7 +4,7 @@ const transactionSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["income", "expense"],
+      // enum: ["income", "expense", "money transfer"],
       required: true,
     },
     category: {
@@ -36,7 +36,7 @@ const transactionSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
-    locCode:{
+    locCode: {
       type: String,
       required: true,
     },
