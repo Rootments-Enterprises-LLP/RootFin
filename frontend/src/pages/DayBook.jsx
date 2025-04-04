@@ -25,7 +25,7 @@ const DayBook = () => {
 
 
     const handleFetch = () => {
-        const baseUrl = "http://15.207.90.158:5000/api/GetBooking";
+        const baseUrl = "http://15.207.90.158:5005/api/GetBooking";
         if (!fromDate || !toDate) {
             return alert("select date ")
         } else {
