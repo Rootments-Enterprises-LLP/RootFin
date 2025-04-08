@@ -2,7 +2,7 @@ import CloseTransaction from "../model/Closing.js";
 
 export const CloseController = async (req, res) => {
     try {
-        const { totalBankAmount: bank, totalAmount: cash, locCode, date,totalCash:Closecash } = req.body;
+        const { totalBankAmount: bank, totalAmount: cash, locCode, date, totalCash: Closecash } = req.body;
 
         if (bank === undefined || cash === undefined || !locCode) {
             return res.status(400).json({
@@ -71,6 +71,32 @@ export const GetCloseController = async (req, res) => {
             message: "data Found",
             data: data
         })
+    } catch (error) {
+        res.status(500).json({
+            message: "Internal server Error"
+        })
+    }
+}
+
+
+export const GetAllCloseData = async (req, res) => {
+    try {
+        const { date, role } = req.query;
+
+        if (role !== 'admin') {
+            return res.status(401).json({
+                message: "You are not a Admin"
+            })
+        }
+
+        const Alldata = await CloseTransaction.find({
+            date
+        })
+
+        res.status(200).json({
+            data: Alldata
+        })
+
     } catch (error) {
         res.status(500).json({
             message: "Internal server Error"
