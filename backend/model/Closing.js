@@ -24,6 +24,10 @@ const CloseSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+        email: {
+            type: String,
+            default: ""
+        }
     },
     { timestamps: true }
 );

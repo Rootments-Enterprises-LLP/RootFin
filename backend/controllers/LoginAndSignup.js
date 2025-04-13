@@ -71,10 +71,9 @@ export const Login = async (req, res) => {
             message: 'Login successful',
 
             user: {
-                id: user._id,
+                email: user.email,
                 username: user.username,
                 power: user.power,
-                email: user.email,
                 locCode: user.locCode,
             },
         });

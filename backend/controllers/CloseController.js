@@ -2,54 +2,59 @@ import CloseTransaction from "../model/Closing.js";
 
 export const CloseController = async (req, res) => {
     try {
-        const { totalBankAmount: bank, totalAmount: cash, locCode, date, totalCash: Closecash } = req.body;
+        const { totalBankAmount: bank, totalAmount: cash, locCode, date, totalCash: Closecash, email } = req.body;
 
-        if (bank === undefined || cash === undefined || !locCode) {
+        if (bank === undefined || cash === undefined || !locCode || !date) {
             return res.status(400).json({
                 message: "All fields are required",
             });
         }
 
-        // Get today's date in YYYY-MM-DD format
-        const today = new Date().toISOString().split("T")[0];
+        console.log("Provided Date:", date);
 
-        console.log("Today's Date:", today, date);
-
-        // Check if an entry already exists for today's date
-        const existingClose = await CloseTransaction.findOne({
-            locCode,
-            date: today,
-        });
+        // Check if an entry already exists for the given date and locCode
+        const existingClose = await CloseTransaction.findOne({ locCode, date });
 
         if (existingClose) {
-            return res.status(401).json({
-                message: "Already saved the cash for today",
+            // Update existing document
+            existingClose.bank = bank;
+            existingClose.cash = cash;
+            existingClose.Closecash = Closecash;
+            existingClose.email = email
+
+            await existingClose.save();
+
+            return res.status(200).json({
+                message: "Cash and bank details updated successfully",
+                data: existingClose,
+            });
+        } else {
+            // Create new document
+            const CloseCashBank = new CloseTransaction({
+                bank,
+                Closecash,
+                cash,
+                locCode,
+                date,
+                email
+            });
+
+            await CloseCashBank.save();
+
+            return res.status(201).json({
+                message: "Cash and bank details saved successfully",
+                data: CloseCashBank,
             });
         }
-
-        // Save the transaction with today's date
-        const CloseCashBank = new CloseTransaction({
-            bank,
-            Closecash,
-            cash,
-            locCode,
-            date: today, // Ensure date is today
-        });
-
-        await CloseCashBank.save();
-
-        res.status(201).json({
-            message: "Cash and bank details saved successfully",
-            data: CloseCashBank,
-        });
     } catch (error) {
         console.error("Error:", error);
-        res.status(500).json({
+        return res.status(500).json({
             message: "An error occurred while saving the data.",
             error: error.message,
         });
     }
 };
+
 
 
 export const GetCloseController = async (req, res) => {
