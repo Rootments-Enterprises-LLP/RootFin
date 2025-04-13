@@ -4,23 +4,41 @@ export const CloseController = async (req, res) => {
     try {
         const { totalBankAmount: bank, totalAmount: cash, locCode, date, totalCash: Closecash, email } = req.body;
 
-        if (bank === undefined || cash === undefined || !locCode || !date) {
+        console.log(bank, cash, Closecash, email, locCode, date);
+
+        if (bank === undefined || cash === undefined || cash === 0 || !locCode || !date) {
             return res.status(400).json({
                 message: "All fields are required",
             });
         }
+        
 
         console.log("Provided Date:", date);
 
+        // Convert date from "DD-MM-YYYY" to valid Date object
+        let formattedDate;
+        if (date.includes("-") && date.split("-")[0].length === 2) {
+            const [day, month, year] = date.split("-");
+            formattedDate = new Date(`${year}-${month}-${day}`);
+        } else {
+            formattedDate = new Date(date);
+        }
+
+        if (isNaN(formattedDate.getTime())) {
+            return res.status(400).json({
+                message: "Invalid date format. Use DD-MM-YYYY or a valid date string.",
+            });
+        }
+
         // Check if an entry already exists for the given date and locCode
-        const existingClose = await CloseTransaction.findOne({ locCode, date });
+        const existingClose = await CloseTransaction.findOne({ locCode, date: formattedDate });
 
         if (existingClose) {
             // Update existing document
             existingClose.bank = bank;
             existingClose.cash = cash;
             existingClose.Closecash = Closecash;
-            existingClose.email = email
+            existingClose.email = email;
 
             await existingClose.save();
 
@@ -35,7 +53,7 @@ export const CloseController = async (req, res) => {
                 Closecash,
                 cash,
                 locCode,
-                date,
+                date: formattedDate,
                 email
             });
 
@@ -54,6 +72,7 @@ export const CloseController = async (req, res) => {
         });
     }
 };
+
 
 
 
