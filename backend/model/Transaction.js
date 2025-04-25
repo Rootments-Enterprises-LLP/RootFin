@@ -27,9 +27,13 @@ const transactionSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    upi: {
+      type: String,
+      required: true,
+    },
     paymentMethod: {
       type: String,
-      enum: ["cash", "bank", "split"],
+      enum: ["cash", "bank","upi", "split"],
       required: true,
     },
     date: {

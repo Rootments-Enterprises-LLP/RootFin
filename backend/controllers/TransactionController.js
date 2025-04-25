@@ -6,10 +6,10 @@ import Transaction from "../model/Transaction.js";
 
 export const CreatePayment = async (req, res) => {
     try {
-        const { type, category, remark, amount, cash, bank, paymentMethod, locCode, date } = req.body;
+        const { type, category, remark, amount, cash, bank, upi, paymentMethod, locCode, date } = req.body;
 
         // Ensure all required fields are provided
-        if (!type || !category || !amount || !cash || !bank || !paymentMethod || !date || !locCode) {
+        if (!type || !category || !amount || !cash || !upi || !bank || !paymentMethod || !date || !locCode) {
             return res.status(400).json({ message: "All fields are required" });
         }
 
@@ -20,6 +20,7 @@ export const CreatePayment = async (req, res) => {
             amount,
             cash,
             bank,
+            upi, 
             locCode,
             paymentMethod,
             date,
