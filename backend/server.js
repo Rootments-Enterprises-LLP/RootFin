@@ -6,7 +6,10 @@ import cookieParser from 'cookie-parser';
 import connectMongoDB from './db/database.js';
 import UserRouter from './route/LoginRoute.js';
 // import { sendWhatsAppMessage } from './lib/WhatsAppMessage.js';
+import setupSwagger from './swagger.js'
+// import { sendWhatsAppMessage } from './lib/WhatsAppMessage.js';
 const app = express();
+setupSwagger(app)
 
 const port = process.env.PORT || 7000;
 
