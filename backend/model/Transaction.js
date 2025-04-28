@@ -33,7 +33,7 @@ const transactionSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["cash", "bank","upi", "split"],
+      enum: ["cash", "bank", "upi", "split"],
       required: true,
     },
     date: {
@@ -44,6 +44,10 @@ const transactionSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    quantity: {
+      type: String,
+      default: ""
+    }
   },
   { timestamps: true }
 );
