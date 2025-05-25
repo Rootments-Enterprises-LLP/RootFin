@@ -22,4 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# ─────────────────────────────
+# 🔐 Environment Configuration
+# ─────────────────────────────
 .env
+.env.production
+.env.development
+.env.local
+.env.*.local
