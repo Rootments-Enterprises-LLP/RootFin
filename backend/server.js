@@ -10,10 +10,15 @@ import UserRouter     from "./route/LoginRoute.js";   // ← you already had thi
 import TwsRoutes      from "./route/TwsRoutes.js";    // ← fixed router
 import setupSwagger   from "./swagger.js";
 
-const env     = process.env.NODE_ENV || "development";
-const envFile = `.env.${env}`;
-fs.existsSync(envFile) ? dotenv.config({ path: envFile })
-                       : dotenv.config();
+if (process.env.NODE_ENV !== 'production') {
+  const envFile = `.env.${process.env.NODE_ENV || 'development'}`;
+  if (fs.existsSync(envFile)) {
+    dotenv.config({ path: envFile });
+  } else {
+    dotenv.config();
+  }
+}
+
 
 const app  = express();
 const PORT = process.env.PORT || 7000;
