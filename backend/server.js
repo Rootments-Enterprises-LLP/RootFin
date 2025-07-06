@@ -39,6 +39,7 @@ app.use("/user",UserRouter)
 
 
 app.listen(port, () => {
+  console.log('MONGODB_URI at runtime ->', process.env.MONGODB_URI);
   connectMongoDB()
   console.log(`Server running on port ${port}`);
 });
