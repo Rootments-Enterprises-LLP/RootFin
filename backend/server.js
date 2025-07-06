@@ -18,8 +18,8 @@ if (process.env.NODE_ENV !== 'production') {
     dotenv.config();
   }
 }
-
-
+const env = process.env.NODE_ENV || "development";
+//JUST FOR COMMITING
 const app  = express();
 const PORT = process.env.PORT || 7000;
 
