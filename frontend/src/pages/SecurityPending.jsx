@@ -3,7 +3,7 @@ import Header from "../components/Header";
 import baseUrl from "../api/api";
 
 const SecurityPending = () => {
-    const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
+    const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
 
     const [selectedOption, setSelectedOption] = useState("radioDefault01");
     const [remark, setRemark] = useState("");
@@ -11,51 +11,102 @@ const SecurityPending = () => {
 
     const currentDate = new Date().toISOString().split("T")[0];
 
+    // const handleSubmit = async (e) => {
+    //     e.preventDefault();
+
+    //     try {
+    //         const parsedAmount = parseFloat(amount) || 0;
+    //         if (parsedAmount <= 0) {
+    //             alert("Please enter a valid amount.");
+    //             return;
+    //         }
+
+    //         const transactionData = {
+    //             type: "money transfer",
+    //             category: selectedOption === "radioDefault01" ? "Cash to Bank" : "Bank to Cash",
+    //             remark: remark,
+    //             locCode: currentusers.locCode,
+    //             amount: `${parsedAmount}`,
+    //             bank: 0,
+    //             upi: 0,
+    //             cash: selectedOption === "radioDefault01" ? `-${parsedAmount}` : `${parsedAmount}`,
+    //             paymentMethod: selectedOption === "radioDefault01" ? "cash" : "bank",
+    //             date: currentDate
+    //         };
+    //         const response = await fetch(`${baseUrl.baseUrl}user/createPayment`, {
+    //             method: "POST",
+    //             headers: {
+    //                 "Content-Type": "application/json"
+    //             },
+    //             body: JSON.stringify(transactionData)
+    //         });
+
+    //         const result = await response.json();
+
+    //         if (response.ok) {
+    //             alert("Transaction successfully created!");
+    //             console.log("Success:", result);
+    //         } else {
+    //             alert("Error: " + result.message);
+    //             console.error("Error:", result);
+    //         }
+
+    //         console.log(transactionData);
+    //         alert("Transaction submitted successfully!");
+    //     } catch (error) {
+    //         console.error("Error submitting transaction:", error);
+    //     }
+    // };
+
+
     const handleSubmit = async (e) => {
-        e.preventDefault();
+    e.preventDefault();
 
-        try {
-            const parsedAmount = parseFloat(amount) || 0;
-            if (parsedAmount <= 0) {
-                alert("Please enter a valid amount.");
-                return;
-            }
-
-            const transactionData = {
-                type: "money transfer",
-                category: selectedOption === "radioDefault01" ? "Cash to Bank" : "Bank to Cash",
-                remark: remark,
-                locCode: currentusers.locCode,
-                amount: `${parsedAmount}`,
-                bank: selectedOption === "radioDefault01" ? `${parsedAmount}` : `-${parsedAmount}`,
-                cash: selectedOption === "radioDefault01" ? `-${parsedAmount}` : `${parsedAmount}`,
-                paymentMethod: selectedOption === "radioDefault01" ? "cash" : "bank",
-                date: currentDate
-            };
-            const response = await fetch(`${baseUrl.baseUrl}user/createPayment`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(transactionData)
-            });
-
-            const result = await response.json();
-
-            if (response.ok) {
-                alert("Transaction successfully created!");
-                console.log("Success:", result);
-            } else {
-                alert("Error: " + result.message);
-                console.error("Error:", result);
-            }
-
-            console.log(transactionData);
-            alert("Transaction submitted successfully!");
-        } catch (error) {
-            console.error("Error submitting transaction:", error);
+    try {
+        const parsedAmount = parseFloat(amount) || 0;
+        if (parsedAmount <= 0) {
+            alert("Please enter a valid amount.");
+            return;
         }
-    };
+
+        const transactionData = {
+            type: "money transfer",
+            category: selectedOption === "radioDefault01" ? "Cash to Bank" : "Bank to Cash",
+            remark: remark,
+            locCode: currentusers.locCode,
+            amount: `${parsedAmount}`,
+            bank: 0,
+            upi: 0,
+            cash: selectedOption === "radioDefault01" ? `-${parsedAmount}` : `${parsedAmount}`,
+            paymentMethod: selectedOption === "radioDefault01" ? "cash" : "bank",
+            date: currentDate
+        };
+
+        const response = await fetch(`${baseUrl.baseUrl}user/createPayment`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(transactionData)
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert("Transaction successfully created!");
+            console.log("Success:", result);
+        } else {
+            alert("Error: " + result.message);
+            console.error("Error:", result);
+        }
+
+        console.log(transactionData);
+        // ✅ Removed duplicate success alert
+        // alert("Transaction submitted successfully!");
+    } catch (error) {
+        console.error("Error submitting transaction:", error);
+    }
+};
 
     return (
         <>
@@ -122,6 +173,7 @@ const SecurityPending = () => {
                                         placeholder="Enter your remarks"
                                         value={remark}
                                         onChange={(e) => setRemark(e.target.value)}
+                                        required
                                     />
                                 </div>
                             </div>

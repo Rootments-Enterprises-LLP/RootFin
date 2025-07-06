@@ -3,16 +3,51 @@ import Transaction from "../model/Transaction.js";
 
 
 
-
 export const CreatePayment = async (req, res) => {
     try {
-        const { type, category, remark, amount, cash, bank, upi, paymentMethod, locCode, quantity, date } = req.body;
+        const {
+            type,
+            category,
+            remark,
+            amount,
+            cash,
+            bank,
+            upi,
+            paymentMethod,
+            locCode,
+            quantity,
+            date,
+            invoiceNo,
+            isSecurityReturn // 🆕 From frontend
+        } = req.body;
+
         console.log(type, category, remark, amount, cash, bank, upi, paymentMethod, locCode, date);
 
-        if (!type || !category || !amount || cash === undefined || upi === undefined || bank === undefined || !paymentMethod || !date || !locCode) {
+        // ✅ Validate required fields
+        if (
+            !type ||
+            !category ||
+            !amount ||
+            cash === undefined ||
+            upi === undefined ||
+            bank === undefined ||
+            !paymentMethod ||
+            !date ||
+            !locCode
+        ) {
             return res.status(400).json({ message: "All fields are required" });
         }
 
+        // ✅ New logic: Allow skip invoiceNo for security return or money transfer
+        const isMoneyTransfer =
+            type === "money transfer" &&
+            (category === "Cash to Bank" || category === "Bank to Cash");
+
+        if (!invoiceNo && !isSecurityReturn && !isMoneyTransfer) {
+            return res.status(400).json({ message: "invoiceNo is required for this transaction type." });
+        }
+
+        // ✅ Prepare transaction object
         const newTransaction = new Transaction({
             type,
             category,
@@ -25,14 +60,88 @@ export const CreatePayment = async (req, res) => {
             locCode,
             paymentMethod,
             date,
+            ...(invoiceNo && { invoiceNo }) // add only if present
         });
 
+        // ✅ Save transaction
         const savedTransaction = await newTransaction.save();
         res.status(201).json(savedTransaction);
+
     } catch (error) {
+        console.error("CreatePayment error:", error);
         res.status(500).json({ message: "Server error", error: error.message });
     }
-}
+};
+
+
+
+
+
+// export const CreatePayment = async (req, res) => {
+//     try {
+//         const {
+//             type,
+//             category,
+//             remark,
+//             amount,
+//             cash,
+//             bank,
+//             upi,
+//             paymentMethod,
+//             locCode,
+//             quantity,
+//             date,
+//             invoiceNo,
+//             isSecurityReturn  // 🆕 Received from frontend
+//         } = req.body;
+
+//         console.log(type, category, remark, amount, cash, bank, upi, paymentMethod, locCode, date);
+
+//         // ✅ Validate required fields
+//         if (
+//             !type ||
+//             !category ||
+//             !amount ||
+//             cash === undefined ||
+//             upi === undefined ||
+//             bank === undefined ||
+//             !paymentMethod ||
+//             !date ||
+//             !locCode
+//         ) {
+//             return res.status(400).json({ message: "All fields are required" });
+//         }
+
+//         // ✅ Only enforce invoiceNo if not a Security Return
+//         if (!invoiceNo && !isSecurityReturn) {
+//             return res.status(400).json({ message: "invoiceNo is required for this transaction type." });
+//         }
+
+//         // ✅ Prepare new transaction object
+//         const newTransaction = new Transaction({
+//             type,
+//             category,
+//             remark,
+//             amount,
+//             quantity,
+//             cash,
+//             bank,
+//             upi,
+//             locCode,
+//             paymentMethod,
+//             date,
+//             ...(invoiceNo && { invoiceNo })  // only add invoiceNo if present
+//         });
+
+//         // ✅ Save transaction
+//         const savedTransaction = await newTransaction.save();
+//         res.status(201).json(savedTransaction);
+
+//     } catch (error) {
+//         console.error("CreatePayment error:", error);
+//         res.status(500).json({ message: "Server error", error: error.message });
+//     }
+// };
 
 
 export const GetPayment = async (req, res) => {
@@ -56,7 +165,7 @@ export const GetPayment = async (req, res) => {
 
         // Query transactions based on LocCode and Date Range
         const transactions = await Transaction.find({
-            locCode: LocCode, // Match location code
+             locCode: String(req.query.LocCode), // Match location code
             date: { $gte: fromDate, $lte: toDate }, // Match date range
         }).sort({ date: -1 });
 
@@ -65,6 +174,7 @@ export const GetPayment = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ message: "Server error", error: error.message });
+        
     }
 };
 

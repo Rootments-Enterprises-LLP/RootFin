@@ -1,9 +1,33 @@
+import { CSVLink } from "react-csv";
 import Headers from '../components/Header.jsx';
 import React, { useEffect, useMemo, useState } from "react";
 import Select from "react-select";
 import useFetch from '../hooks/useFetch.jsx';
 import baseUrl from '../api/api.js';
 import { useRef } from "react";
+import { FiRefreshCw } from "react-icons/fi";
+
+
+
+
+const headers = [
+    { label: "Date", key: "date", },
+    { label: "Invoice No", key: "invoiceNo" },
+    { label: "Customer Name", key: "customerName" },
+    { label: "Category", key: "Category" },
+    { label: "Sub Category", key: "SubCategory" },
+    { label: "Balance Payable", key: "SubCategory1" },
+    { label: "Remarks", key: "remarks" },
+    { label: "Amount", key: "amount" },
+    { label: "Total Transaction", key: "totalTransaction" },
+    { label: "Bill Value", key: "billValue" },
+    { label: "security", key: "securityAmount" },
+    { label: "Balance Payable", key: "Balance" },
+    { label: "Remark", key: "remark" },
+    { label: "Cash", key: "cash" },
+    { label: "Bank", key: "bank" },
+    { label: "UPI", key: "upi" },
+];
 
 const categories = [
     { value: "all", label: "All" },
@@ -13,7 +37,7 @@ const categories = [
     { value: "Return", label: "Return" },
     { value: "Cancel", label: "Cancel" },
 
-    { value: "income", label: "income" },
+    { value: "income", label: "Income" },
     { value: "expense", label: "Expense" },
     { value: "money transfer", label: "Cash to Bank" },
 ];
@@ -26,7 +50,8 @@ const subCategories = [
     { value: "cancellation Refund", label: "Cancellation Refund" },
     { value: "security Refund", label: "Security Refund" },
     { value: "compensation", label: "Compensation" },
-    { value: "petty expenses", label: "petty expenses" },
+    { value: "petty expenses", label: "Petty Expenses" },
+    { value: "shoe sales", label: "Shoe Sales" }
 ];
 
 
@@ -46,11 +71,16 @@ const denominations = [
 const DayBookInc = () => {
 
     const [preOpen, setPreOpen] = useState([])
-    const date = new Date();
-    const previousDate = new Date(date);
-    previousDate.setDate(date.getDate() - 1);
-    const TodayDate = `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
+    const [preOpen1, setPreOpen1] = useState([])
+    const [loading, setLoading] = useState(false)
+
+
+    const date1 = new Date();
+    const previousDate = new Date(date1);
+    previousDate.setDate(date1.getDate() - 1);
+    const TodayDate = `${String(date1.getDate()).padStart(2, '0')}-${String(date1.getMonth() + 1).padStart(2, '0')}-${date1.getFullYear()}`;
     const previousDate1 = `${String(previousDate.getDate()).padStart(2, '0')}-${String(previousDate.getMonth() + 1).padStart(2, '0')}-${previousDate.getFullYear()}`;
+    const date = TodayDate;
 
     // alert(TodayDate);
     const currentusers = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
@@ -75,10 +105,14 @@ const DayBookInc = () => {
     const apiUrl4 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
     const apiUrl5 = `${baseUrl.baseUrl}user/saveCashBank`
     const apiUrl6 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`
+    const apiUrl7 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${currentDate}`
 
+    // alert(apiurl1)
 
-    const locCode = currentusers.locCode
+    const locCode = currentusers?.locCode
+    const email = currentusers?.email
 
+    // alert(apiurl1)
 
     const printRef = useRef(null);
 
@@ -111,59 +145,133 @@ const DayBookInc = () => {
     const { data } = useFetch(apiUrl, fetchOptions);
     const { data: data1 } = useFetch(apiurl1, fetchOptions);
     const { data: data2 } = useFetch(apiUrl2, fetchOptions);
+    // alert(apiUrl2)
     const { data: data3 } = useFetch(apiUrl3, fetchOptions);
 
     const { data: data4 } = useFetch(apiUrl4, fetchOptions);
 
     // console.log(data1);
+    const bookingTransactions = (data?.dataSet?.data || []).map(transaction => {
+        const bookingCashAmount = parseInt(transaction?.bookingCashAmount || 0, 10);
+        const bookingBankAmount = parseInt(transaction?.bookingBankAmount || 0, 10);
+        const bookingUPIAmount = parseInt(transaction?.bookingUPIAmount || 0, 10);
+        const invoiceAmount = parseInt(transaction?.invoiceAmount || 0, 10);
 
-    const bookingTransactions = (data?.dataSet?.data || []).map(transaction => ({
-        ...transaction,
-        bookingCashAmount: parseInt(transaction.bookingCashAmount, 10) || 0,
-        bookingBankAmount: parseInt(transaction.bookingBankAmount, 10) || 0,
-        invoiceAmount: parseInt(transaction.invoiceAmount, 10) || 0,
-        bookingBank: parseInt(transaction.bookingBankAmount) + parseInt(transaction.bookingUPIAmount),
-        TotaltransactionBooking: parseInt(transaction.bookingBankAmount) + parseInt(transaction.bookingUPIAmount) + parseInt(transaction.bookingCashAmount),
-        Category: "Booking",
-        SubCategory: "Advance"
-    }));
+        const totalAmount = bookingCashAmount + bookingBankAmount + bookingUPIAmount;
+
+        return {
+            ...transaction,
+            date: transaction?.bookingDate || null,
+            bookingCashAmount,
+            bookingBankAmount,
+            billValue: transaction.invoiceAmount,
+
+            invoiceAmount,
+            bookingBank1: bookingBankAmount,
+            TotaltransactionBooking: totalAmount,
+            Category: "Booking",
+            SubCategory: "Advance",
+            totalTransaction: totalAmount,
+            cash: bookingCashAmount,
+            bank: bookingBankAmount,
+            upi: bookingUPIAmount,
+            amount: totalAmount,
+        };
+    });
+
     const canCelTransactions = (data3?.dataSet?.data || []).map(transaction => ({
         ...transaction,
+        date: transaction.cancelDate,
         Category: "Cancel",
-        SubCategory: "cancellation Refund"
-
+        SubCategory: "cancellation Refund",
+        billValue: transaction.invoiceAmount,
+        amount: parseInt(transaction.deleteUPIAmount) + parseInt(transaction.deleteCashAmount) + parseInt(transaction.deleteBankAmount),
+        totalTransaction: parseInt(transaction.deleteUPIAmount) + parseInt(transaction.deleteCashAmount) + parseInt(transaction.deleteBankAmount),
+        cash: parseInt(transaction.deleteCashAmount),
+        bank: parseInt(transaction.deleteBankAmount),
+        upi: parseInt(transaction.deleteUPIAmount),
 
     }));
     const Transactionsall = (data4?.data || []).map(transaction => ({
         ...transaction,
         locCode: currentusers.locCode,
-        date: transaction.date.split("T")[0] // Correctly extract only the date
-    }));
-    const rentOutTransactions = (data1?.dataSet?.data || []).map(transaction => ({
-        ...transaction,
-        bookingCashAmount: parseInt(transaction.bookingCashAmount, 10) || 0,
-        bookingBankAmount: parseInt(transaction.bookingBankAmount, 10) || 0,
-        invoiceAmount: parseInt(transaction.invoiceAmount, 10) || 0,
-        securityAmount: parseInt(transaction.securityAmount, 10) || 0,
-        advanceAmount: parseInt(transaction.advanceAmount, 10) || 0,
-        Balance: (parseInt(transaction.invoiceAmount ?? 0, 10) - parseInt(transaction.advanceAmount ?? 0, 10)) || 0,
-        rentoutUPIAmount: parseInt(transaction.rentoutUPIAmount),
-        Category: "RentOut",
-        SubCategory: "Security",
-        SubCategory1: "Balance Payable"
+        date: transaction.date.split("T")[0],// Correctly extract only the date
+        Category: transaction.type,
+        cash1: transaction.cash,
+        bank1: transaction.bank,
+        subCategory: transaction.category,
+        billValue: transaction.amount,
+        Tupi: transaction.upi
+
+
 
     }));
+    const rentOutTransactions = (data1?.dataSet?.data || []).map(transaction => {
+        const rentoutCashAmount = parseInt(transaction?.rentoutCashAmount ?? 0, 10);
+        const rentoutBankAmount = parseInt(transaction?.rentoutBankAmount ?? 0, 10);
+        const invoiceAmount = parseInt(transaction?.invoiceAmount ?? 0, 10);
 
-    const returnOutTransactions = (data2?.dataSet?.data || []).map(transaction => ({
-        ...transaction,
-        returnBankAmount: -(parseInt(transaction.returnBankAmount, 10) || 0),
-        returnCashAmount: -(parseInt(transaction.returnCashAmount, 10) || 0),
-        invoiceAmount: parseInt(transaction.invoiceAmount, 10) || 0,
-        advanceAmount: parseInt(transaction.advanceAmount, 10) || 0,
-        RsecurityAmount: -(parseInt(transaction.securityAmount, 10) || 0),
-        Category: "Return",
-        SubCategory: "security Refund",
-    }));
+        const advanceAmount = parseInt(transaction?.advanceAmount ?? 0, 10);
+        const rentoutUPIAmount = parseInt(transaction?.rentoutUPIAmount ?? 0, 10);
+        const securityAmount = parseInt(transaction?.securityAmount ?? 0, 10);
+
+        return {
+            ...transaction,
+            date: transaction?.rentOutDate ?? "",
+            rentoutCashAmount,
+            rentoutBankAmount,
+            invoiceAmount,
+            billValue: transaction.invoiceAmount,
+
+            securityAmount,
+            advanceAmount,
+            Balance: invoiceAmount - advanceAmount,
+            rentoutUPIAmount,
+            Category: "RentOut",
+            SubCategory: "Security",
+            SubCategory1: "Balance Payable",
+            totalTransaction: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount,
+            cash: rentoutCashAmount,
+            bank: rentoutBankAmount,
+            upi: rentoutUPIAmount,
+            amount: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount,
+        };
+    });
+
+
+
+    //return
+
+    const returnOutTransactions = (data2?.dataSet?.data || []).map(transaction => {
+        const returnBankAmount = -(parseInt(transaction?.returnBankAmount || 0, 10));
+        const returnCashAmount = -(parseInt(transaction?.returnCashAmount || 0, 10));
+        const returnUPIAmount = -(parseInt(transaction?.returnUPIAmount || 0, 10));
+        const invoiceAmount = parseInt(transaction?.invoiceAmount || 0, 10);
+        const advanceAmount = parseInt(transaction?.advanceAmount || 0, 10);
+        const RsecurityAmount = -(parseInt(transaction?.securityAmount || 0, 10));
+
+        const totalAmount = returnBankAmount + returnCashAmount + returnUPIAmount;
+
+        return {
+            ...transaction,
+            date: transaction?.returnedDate || null,
+            returnBankAmount,
+            returnCashAmount,
+            returnUPIAmount,
+            invoiceAmount,
+            advanceAmount,
+            billValue: invoiceAmount,
+            amount: totalAmount,
+            totalTransaction: totalAmount,
+            RsecurityAmount,
+            Category: "Return",
+            SubCategory: "Security Refund",
+            cash: returnCashAmount,
+            bank: returnBankAmount,
+            upi: returnUPIAmount,
+        };
+    });
+
 
 
     const allTransactions = [...bookingTransactions, ...rentOutTransactions, ...returnOutTransactions, ...canCelTransactions, ...Transactionsall];
@@ -208,14 +316,37 @@ const DayBookInc = () => {
             sum +
             (parseInt(item.bookingBankAmount, 10) || 0) +
             (parseInt(item.rentoutBankAmount, 10) || 0) +
-            (parseInt(item.bank, 10) || 0) +
+            (parseInt(item.bank1, 10) || 0) +
             (parseInt(item.rentoutUPIAmount, 10) || 0) +
             (parseInt(item.bookingUPIAmount, 10) || 0) +
             (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
             (parseInt(item.deleteUPIAmount, 10) || 0) * -1 + // Ensure negative value is applied correctly
             (parseInt(item.returnBankAmount, 10) || 0),
             0
-        ) || 0) + (parseInt(preOpen?.bank, 10) || 0);
+        ) || 0);
+
+    const totalBankAmount1 =
+        (filteredTransactions?.reduce((sum, item) =>
+            sum +
+            (parseInt(item.bookingBank1, 10) || 0) +
+            (parseInt(item.bank1, 10) || 0) +
+            (parseInt(item.rentoutBankAmount, 10) || 0) +
+            (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
+            (parseInt(item.returnBankAmount, 10) || 0),
+            0
+        ) || 0);
+
+
+    const totalBankAmountupi =
+        (filteredTransactions?.reduce((sum, item) =>
+            sum +
+            (parseInt(item.rentoutUPIAmount, 10) || 0) +
+            (parseInt(item.bookingUPIAmount, 10) || 0) +
+            (parseInt(item.Tupi, 10) || 0) +
+            (parseInt(item.returnUPIAmount, 10) || 0) +
+            (parseInt(item.deleteUPIAmount, 10) || 0) * -1,
+            0
+        ) || 0);
 
 
     const totalCash = (
@@ -223,16 +354,16 @@ const DayBookInc = () => {
             sum +
             (parseInt(item.bookingCashAmount, 10) || 0) +
             (parseInt(item.rentoutCashAmount, 10) || 0) +
-            (parseInt(item.cash, 10) || 0) +
+            (parseInt(item.cash1, 10) || 0) +
             ((parseInt(item.deleteCashAmount, 10) || 0) * -1) + // Ensure deletion is properly subtracted
             (parseInt(item.returnCashAmount, 10) || 0),
             0
         ) + (parseInt(preOpen?.Closecash, 10) || 0)
     );
-
     const savedData = {
-        TodayDate,
+        date,
         locCode,
+        email,
         totalCash,
         totalAmount,
         totalBankAmount
@@ -241,6 +372,14 @@ const DayBookInc = () => {
     // console.log(savedData);
 
     const CreateCashBank = async () => {
+
+
+
+        // alert(savedData.totalAmount)
+        if (savedData.totalAmount === 0) {
+            return alert('You have entered 0 as cash. If cash is missing, please inform the Rootments office.')
+        }
+        setLoading(true)
         try {
             const response = await fetch(apiUrl5, {
                 method: 'POST',
@@ -251,17 +390,25 @@ const DayBookInc = () => {
             });
 
             if (response.status === 401) {
+                setLoading(false)
                 return alert("Error: Data already saved for today.");
             } else if (!response.ok) {
-                return alert("Error: Failed to save data.");
+                setLoading(false)
+                return alert(JSON.stringify(response), null, 2);
             }
 
             const data = await response.json();
             console.log("Data saved successfully:", data);
+
             alert("Data saved successfully");
+            setLoading(false)
+            window.location.reload();
+
         } catch (error) {
             console.error("Error saving data:", error);
             alert("An unexpected error occurred.");
+            setLoading(false)
+
         }
     };
 
@@ -287,8 +434,50 @@ const DayBookInc = () => {
             console.error("Error saving data:", error);
         }
     };
+
+    // const takeCreateCashBank = async () => {
+    //     try {
+    //         const response = await fetch(apiUrl7, {
+    //             method: 'GET',
+    //             headers: {
+    //                 'Content-Type': 'application/json',
+    //             },
+    //         });
+    //         // alert(apiUrl6)
+
+    //         if (!response.ok) {
+    //             throw new Error('Error saving data');
+    //         }
+
+    //         const data = await response.json();
+    //         console.log("Data saved successfully:", data);
+    //         setPreOpen1(data?.data)
+    //     } catch (error) {
+    //         console.error("Error saving data:", error);
+    //     }
+    // };
+
+    const takeCreateCashBank = async () => {
+        try {
+            const response = await fetch(apiUrl7, { method: 'GET' });
+            if (response.status === 404) {
+                console.log("No closing data yet for today.");
+                return;    // silently ignore and continue
+            }
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(`API ${response.status}: ${text}`);
+            }
+            const json = await response.json();
+            setPreOpen1(json.data);
+        } catch (err) {
+            console.error("Error fetching closing data:", err);
+        }
+    };
+
     useEffect(() => {
         GetCreateCashBank()
+        takeCreateCashBank()
     }, [])
 
     return (
@@ -327,8 +516,8 @@ const DayBookInc = () => {
                             <div className="bg-white p-4 shadow-md rounded-lg ">
                                 <div className="bg-white p-4 shadow-md rounded-lg ">
                                     <table className="w-full border-collapse border rounded-md border-gray-300">
-                                        <thead className='rounded-md'>
-                                            <tr className="bg-[#7C7C7C] rounded-md text-white">
+                                        <thead>
+                                            <tr className="bg-[#7C7C7C] text-white">
                                                 <th className="border p-2">Date</th>
                                                 <th className="border p-2">Invoice No.</th>
                                                 <th className="border p-2">Customer Name</th>
@@ -340,161 +529,103 @@ const DayBookInc = () => {
                                                 <th className="border p-2">Bill Value</th>
                                                 <th className="border p-2">Cash</th>
                                                 <th className="border p-2">Bank</th>
+                                                <th className="border p-2">UPI</th>
                                             </tr>
                                         </thead>
+
                                         <tbody>
-                                            {/* Opening Balance */}
-                                            <tr className="bg-gray-100">
-                                                <td colSpan="9" className="border p-2 font-bold">OPENING BALANCE</td>
-                                                <td className="border p-2 font-bold">{preOpen.Closecash
-                                                }</td>
-                                                <td className="border p-2 font-bold">{preOpen.bank}</td>
+                                            {/* Opening Balance Row */}
+                                            <tr className="bg-gray-100 font-bold">
+                                                <td colSpan="9" className="border p-2">OPENING BALANCE</td>
+                                                <td className="border p-2">{preOpen.Closecash}</td>
+                                                <td className="border p-2">0</td>
+                                                <td className="border p-2">0</td>
                                             </tr>
 
-                                            {/* Transactions */}
+                                            {/* Transaction Rows */}
                                             {filteredTransactions.length > 0 ? (
                                                 filteredTransactions.map((transaction, index) => (
                                                     <>
                                                         {transaction.Category === 'RentOut' ? (
                                                             <>
                                                                 <tr key={`${index}-1`}>
-                                                                    <td className="border p-2">{transaction.bookingDate}</td>
+                                                                    <td className="border p-2">{transaction.date}</td>
                                                                     <td className="border p-2">{transaction.invoiceNo}</td>
                                                                     <td className="border p-2">{transaction.customerName}</td>
-                                                                    <td rowSpan="2" className="border p-2">{transaction.Category}</td> {/* Merged Row */}
+                                                                    <td rowSpan="2" className="border p-2">{transaction.Category}</td>
                                                                     <td className="border p-2">{transaction.SubCategory}</td>
                                                                     <td className="border p-2"></td>
                                                                     <td className="border p-2">{transaction.securityAmount || 0}</td>
                                                                     <td rowSpan="2" className="border p-2">
                                                                         {transaction.securityAmount + transaction.Balance}
                                                                     </td>
-                                                                    <td className="border p-2" rowSpan="2">{transaction.invoiceAmount}</td>
-                                                                    <td className="border p-2" rowSpan="2">{transaction.rentoutCashAmount || 0}</td>
-                                                                    <td className="border p-2" rowSpan="2">{parseInt(transaction.rentoutBankAmount) + parseInt(transaction.rentoutUPIAmount) || 0}</td>
+                                                                    <td rowSpan="2" className="border p-2">{transaction.invoiceAmount}</td>
+                                                                    <td rowSpan="2" className="border p-2">{transaction.rentoutCashAmount || 0}</td>
+                                                                    <td rowSpan="2" className="border p-2">{parseInt(transaction.rentoutBankAmount) || 0}</td>
+                                                                    <td rowSpan="2" className="border p-2">{parseInt(transaction.rentoutUPIAmount) || 0}</td>
                                                                 </tr>
-
                                                                 <tr key={`${index}-2`}>
-                                                                    <td className="border p-2">{transaction.bookingDate}</td> {/* Repeated Row */}
+                                                                    <td className="border p-2">{transaction.rentOutDate || transaction.bookingDate}</td>
                                                                     <td className="border p-2">{transaction.invoiceNo}</td>
                                                                     <td className="border p-2">{transaction.customerName}</td>
-                                                                    {/* Category is skipped due to rowSpan */}
-                                                                    <td className="border p-2">{transaction.SubCategory1
-                                                                    }</td>
+                                                                    <td className="border p-2">{transaction.SubCategory1}</td>
                                                                     <td className="border p-2"></td>
                                                                     <td className="border p-2">{transaction.Balance}</td>
-
-                                                                    {/* <td className="border p-2">{transaction.invoiceAmount}</td> */}
-                                                                    {/* <td className="border p-2">{transaction.rentoutCashAmount || transaction.bookingCashAmount || transaction.returnCashAmount || 0}</td>
-                                                            <td className="border p-2">{transaction.rentoutBankAmount || transaction.bookingBankAmount || transaction.returnBankAmount || 0}</td> */}
                                                                 </tr>
                                                             </>
                                                         ) : (
                                                             <tr key={index}>
-                                                                <td className="border p-2">{transaction.bookingDate || transaction.date}</td>
+                                                                <td className="border p-2">{transaction.date}</td>
                                                                 <td className="border p-2">{transaction.invoiceNo || transaction.locCode}</td>
                                                                 <td className="border p-2">{transaction.customerName}</td>
                                                                 <td className="border p-2">{transaction.Category || transaction.type}</td>
                                                                 <td className="border p-2">{transaction.SubCategory || transaction.category}</td>
                                                                 <td className="border p-2">{transaction.remark}</td>
                                                                 <td className="border p-2">
-
                                                                     {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
                                                                         parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
-                                                                        parseInt(transaction.bookingCashAmount || 0) + parseInt(transaction.bookingBankAmount || 0) + parseInt(transaction.bookingUPIAmount) ||
-                                                                        parseInt(transaction.amount || -(parseInt(transaction.advanceAmount)) || 0)}                                                    </td>
+                                                                        parseInt(transaction.bookingCashAmount || 0) + parseInt(transaction.bookingBankAmount || 0) + parseInt(transaction.bookingUPIAmount || 0) ||
+                                                                        parseInt(transaction.amount || -(parseInt(transaction.advanceAmount || 0)) || 0)}
+                                                                </td>
                                                                 <td className="border p-2">
                                                                     {parseInt(transaction.returnCashAmount || 0) + parseInt(transaction.returnBankAmount || 0) ||
                                                                         parseInt(transaction.rentoutCashAmount || 0) + parseInt(transaction.rentoutBankAmount || 0) ||
                                                                         transaction.TotaltransactionBooking ||
-                                                                        parseInt(transaction.amount || -(parseInt(transaction.deleteBankAmount) + parseInt(transaction.deleteCashAmount)) || 0)}
+                                                                        parseInt(transaction.amount || -(parseInt(transaction.deleteBankAmount || 0) + parseInt(transaction.deleteCashAmount || 0)) || 0)}
                                                                 </td>
                                                                 <td className="border p-2">
                                                                     {parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
                                                                 </td>
                                                                 <td className="border p-2">
-                                                                    {parseInt(transaction.rentoutCashAmount) || parseInt(transaction.bookingCashAmount) || parseInt(transaction.returnCashAmount) || parseInt(transaction.cash) || -(parseInt(transaction.deleteCashAmount)) || 0}
+                                                                    {-(parseInt(transaction.deleteCashAmount)) || parseInt(transaction.rentoutCashAmount) || parseInt(transaction.bookingCashAmount) || parseInt(transaction.returnCashAmount) || parseInt(transaction.cash) || 0}
                                                                 </td>
                                                                 <td className="border p-2">
-                                                                    {parseInt(transaction.rentoutBankAmount) || transaction.bookingBank || parseInt(transaction.returnBankAmount) || parseInt(transaction.bank) || -(parseInt(transaction.deleteBankAmount) + parseInt(transaction.deleteUPIAmount)) || 0}
+                                                                    {parseInt(transaction.rentoutBankAmount) || parseInt(transaction.bank) || parseInt(transaction.bookingBank1) || parseInt(transaction.returnBankAmount) || parseInt(transaction.deleteBankAmount) * -1 || 0}
+                                                                </td>
+                                                                <td className="border p-2">
+                                                                    {parseInt(transaction.rentoutUPIAmount) || parseInt(transaction.bookingUPIAmount) || parseInt(transaction.returnUPIAmount) || parseInt(transaction.deleteUPIAmount) * -1 || parseInt(transaction.Tupi) || 0}
                                                                 </td>
                                                             </tr>
-
                                                         )}
                                                     </>
-
-
-
                                                 ))
                                             ) : (
                                                 <tr>
-                                                    <td colSpan="11" className="text-center border p-4">No transactions found</td>
+                                                    <td colSpan="12" className="text-center border p-4">No transactions found</td>
                                                 </tr>
                                             )}
                                         </tbody>
 
-                                        {/* Footer Totals */}
                                         <tfoot>
                                             <tr className="bg-white text-center font-semibold">
-                                                <td className="border border-gray-300 px-4 py-2 text-left" colSpan="9">Total:</td>
-
-                                                {/* <td className="border border-gray-300 px-4 py-2">
-                                       
-                                        {
-                                            filteredTransactions.reduce((sum, item) =>
-                                                sum +
-                                                (parseInt(item.securityAmount, 10) || 0) +
-                                                (parseInt(item.Balance, 10) || 0) +
-                                                (parseInt(item.returnCashAmount, 10) || 0) +
-                                                (parseInt(item.returnBankAmount, 10) || 0) +
-                                                (parseInt(item.rentoutCashAmount, 10) || 0) -
-                                                (parseInt(item.bookingCashAmount, 10) || 0) + 
-                                                (parseInt(item.bookingBankAmount, 10) || 0) +
-                                                (parseInt(item.amount, 10) || 0),
-                                                (parseInt(item.rentoutBankAmount, 10) || 0) +
-                                                (parseInt(item.returnBankAmount, 10) || 0),
-                                                0
-                                            )
-                                        }
-
-                                    </td> */}
-
-                                                {/* <td className="border border-gray-300 px-4 py-2">
-                                        {filteredTransactions.reduce((sum, item) =>
-                                            sum +
-                                            (parseInt(item.bookingCashAmount, 10) || 0) +
-                                            (parseInt(item.bookingBankAmount, 10) || 0) +
-                                            (parseInt(item.rentoutCashAmount, 10) || 0) +
-                                            (parseInt(item.rentoutBankAmount, 10) || 0) +
-                                            (parseInt(item.returnCashAmount, 10) || 0) +
-                                            (parseInt(item.returnBankAmount, 10) || 0),
-                                            0)}
-                                    </td> */}
-
-                                                {/* Total Booking Cash Amount */}
-                                                {/* <td className="border border-gray-300 px-4 py-2">
-                                        {filteredTransactions.reduce((sum, item) => sum + (parseInt(item.bookingCashAmount, 10) || 0), 0)}
-                                    </td> */}
-
-                                                {/* Total Cash (including opening balance) */}
-                                                <td className="border border-gray-300 px-4 py-2">
-                                                    {
-
-                                                        totalCash
-
-                                                    }
-                                                </td>
-
-                                                {/* Total Bank (including opening balance) */}
-                                                <td className="border border-gray-300 px-4 py-2">
-                                                    {
-
-                                                        totalBankAmount
-                                                    }
-                                                </td>
+                                                <td colSpan="9" className="border border-gray-300 px-4 py-2 text-left">Total:</td>
+                                                <td className="border border-gray-300 px-4 py-2">{totalCash}</td>
+                                                <td className="border border-gray-300 px-4 py-2">{totalBankAmount1}</td>
+                                                <td className="border border-gray-300 px-4 py-2">{totalBankAmountupi}</td>
                                             </tr>
                                         </tfoot>
-
                                     </table>
+
                                 </div>
                             </div>
 
@@ -503,7 +634,13 @@ const DayBookInc = () => {
                             <div>
                                 <div className="p-6 flex  mt-[60px] bg-white relative shadow-md rounded-lg gap-[500px] w-full mx-auto">
                                     <div className='absolute top-2 right-2'>
-                                        <button className='h-[50px] bg-blue-500 px-2 text-white  rounded-md hover:bg-blue-800 cursor-pointer' onClick={() => window.location.reload()}>Click Before save</button>
+                                        <button
+                                            className='flex items-center gap-2 h-[50px] bg-blue-500 px-4 text-white rounded-md hover:bg-blue-800 cursor-pointer'
+                                            onClick={() => window.location.reload()}
+                                        >
+                                            <FiRefreshCw size={20} />
+                                            Refresh Page
+                                        </button>
                                     </div>
                                     <div className=''>
                                         <div className="grid grid-cols-3 gap-4 border-b pb-4">
@@ -528,7 +665,7 @@ const DayBookInc = () => {
 
                                         <div className="flex justify-between mt-4 text-lg font-semibold">
                                             <span>TOTAL</span>
-                                            <span>{totalAmount}</span>
+                                            <span>{preOpen1?.cash || totalAmount}</span>
                                         </div>
                                     </div>
                                     <div className='!w-[500px] mt-[300px]'>
@@ -539,20 +676,27 @@ const DayBookInc = () => {
                                             </div>
                                             <div className="flex justify-between">
                                                 <span>Physical Cash</span>
-                                                <span className="font-bold">{totalAmount}</span>
+                                                <span className="font-bold">{preOpen1?.Closecash ? preOpen1?.cash : totalAmount}</span>
                                             </div>
                                             <div className="flex justify-between text-red-600">
                                                 <span>Differences</span>
-                                                <span className="font-bold">{(totalCash - totalAmount) * -1}</span>
+                                                <span className="font-bold">{preOpen1?.cash ? (totalCash - preOpen1?.cash) * -1 : (totalCash - totalAmount) * -1}</span>
                                             </div>
                                         </div>
                                         <div className='flex gap-2'>
-                                            <button onClick={CreateCashBank} className="mt-6 w-full cursor-pointer bg-yellow-400 text-white py-2 rounded-lg flex items-center justify-center gap-2">
-                                                <span>💾 save </span>
-                                            </button>
-                                            <button onClick={handlePrint} className="mt-6 w-full cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
+                                            {
+                                                loading ? !preOpen1?.cash && <button className="mt-6 w-full cursor-pointer bg-yellow-400 text-white py-2 rounded-lg flex items-center justify-center gap-2">
+                                                    <span>🔃 Loading...! </span>
+                                                </button> : !preOpen1?.cash && <button onClick={CreateCashBank} className="mt-6 w-full h-10 cursor-pointer bg-yellow-400 text-white py-2 rounded-lg flex items-center justify-center gap-2">
+                                                    <span>💾 save </span>
+                                                </button>
+                                            }
+                                            {!loading ? preOpen1?.cash && <button onClick={handlePrint} className="mt-6 w-full cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
                                                 <span>📥 Take pdf</span>
-                                            </button>
+                                            </button> : ""}
+                                            <CSVLink data={filteredTransactions} headers={headers} filename={`${currentDate} DayBook report.csv`}>
+                                                <button className="bg-blue-500 text-white ml-10  h-10  w-[100px] mt-5 p-2 rounded">Export CSV</button>
+                                            </CSVLink>
                                         </div>
 
                                     </div>

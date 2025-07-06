@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FaEye, FaEyeSlash } from "react-icons/fa";
-import img12 from '../../public/image.png';
+import img12 from '../assets/image.png';
 import baseUrl from '../api/api';
 import { useNavigate } from 'react-router-dom';
 

@@ -7,13 +7,18 @@ import SecurityReturn from "./pages/SecurityReturn";
 import SecurityPending from "./pages/SecurityPending";
 import Nav from "./components/Nav.jsx";
 import Login from "./pages/Login.jsx";
+import Security from "./pages/Security.jsx";
+import CloseReport from "./pages/CloseReport.jsx";
+import Revenuereport from "./pages/Revenuereport.jsx";
+import AdminClose from "./pages/AdminClose.jsx";
 
 const App = () => {
   const location = useLocation();
   console.log(location.pathname);
 
+
   // Retrieve the current user from localStorage
-  const currentuser = localStorage.getItem('rootfinuser');
+  const currentuser = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
 
   return (
     <div className="">
@@ -30,6 +35,11 @@ const App = () => {
           <Route path="/RentOutReport" element={currentuser ? <DayBook /> : <Navigate to="/login" />} />
           <Route path="/Income&Expenses" element={currentuser ? <SecurityReturn /> : <Navigate to="/login" />} />
           <Route path="/CashBankLedger" element={currentuser ? <SecurityPending /> : <Navigate to="/login" />} />
+          <Route path="/securityReport" element={currentuser ? <Security /> : <Navigate to='/login' />} />
+          <Route path="/CloseReport" element={currentuser?.power === 'admin' ? <CloseReport /> : <Navigate to='/' />} />
+          <Route path="/AdminClose" element={currentuser?.power === 'admin' ? <AdminClose /> : <Navigate to='/' />} />
+
+          <Route path="/Revenuereport" element={currentuser ? <Revenuereport /> : <Navigate to="/login" />} />
 
         </Routes>
       </div>
