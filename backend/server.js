@@ -25,7 +25,8 @@ app.use(
     origin: ['http://localhost:5173/', 'http://localhost:3000','https://rootfin.vercel.app','https://rootfin.rootments.live',
       'https://rootfin-testenv-clab.vercel.app',
       'https://rootfin-testenv-3.onrender.com',
-      'https://rootfin.onrender.com'
+      'https://rootfin.onrender.com',
+      'https://rootfin-l5pa.onrender.com/',
     ],
     credentials: true,
   })
