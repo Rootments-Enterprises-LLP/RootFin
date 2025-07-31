@@ -1,3 +1,4 @@
+
 import { CSVLink } from "react-csv";
 import Headers from '../components/Header.jsx';
 import React, { useEffect, useMemo, useState } from "react";
@@ -102,6 +103,7 @@ const DayBookInc = () => {
     const apiurl1 = `https://rentalapi.rootments.live/api/GetBooking/GetRentoutList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
     const apiUrl2 = `https://rentalapi.rootments.live/api/GetBooking/GetReturnList?LocCode=${currentusers?.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`
     const apiUrl3 = `https://rentalapi.rootments.live/api/GetBooking/GetDeleteList?LocCode=${currentusers.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`
+    // Comment out the MongoDB API call to prevent edited transactions from affecting Day Book
     const apiUrl4 = `${baseUrl.baseUrl}user/Getpayment?LocCode=${currentusers.locCode}&DateFrom=${currentDate}&DateTo=${currentDate}`;
     const apiUrl5 = `${baseUrl.baseUrl}user/saveCashBank`
     const apiUrl6 = `${baseUrl.baseUrl}user/getsaveCashBank?locCode=${currentusers.locCode}&date=${formattedDate}`
@@ -148,6 +150,7 @@ const DayBookInc = () => {
     // alert(apiUrl2)
     const { data: data3 } = useFetch(apiUrl3, fetchOptions);
 
+    // Comment out the MongoDB data fetch to prevent edited transactions from affecting Day Book
     const { data: data4 } = useFetch(apiUrl4, fetchOptions);
 
     // console.log(data1);
@@ -192,19 +195,46 @@ const DayBookInc = () => {
         upi: parseInt(transaction.deleteUPIAmount),
 
     }));
-    const Transactionsall = (data4?.data || []).map(transaction => ({
+    // Only include MongoDB transactions with allowed categories (case-insensitive)
+    const allowedMongoCategories = [
+        "petty expenses",
+        "staff reimbursement",
+        "maintenance expenses",
+        "telephone internet",
+        "utility bill",
+        "salary",
+        "rent",
+        "courier charges",
+        "asset purchase",
+        "promotion_services",
+        "spot incentive",
+        "other expenses",
+        "shoe sales return",
+        "shirt sales return",
+        "cash to bank",
+        "bank to cash",
+        "compensation",
+        "shoe sales",
+        "shirt sales",  
+        "write off"
+
+    ];
+
+
+    // Comment out the MongoDB transactions mapping to prevent edited transactions from affecting Day Book
+    const Transactionsall = (data4?.data || []).filter(transaction => {
+        const cat = (transaction.category || "").toLowerCase();
+        return allowedMongoCategories.includes(cat);
+    }).map(transaction => ({
         ...transaction,
         locCode: currentusers.locCode,
-        date: transaction.date.split("T")[0],// Correctly extract only the date
+        date: transaction.date.split("T")[0], // Correctly extract only the date
         Category: transaction.type,
         cash1: transaction.cash,
         bank1: transaction.bank,
         subCategory: transaction.category,
         billValue: transaction.amount,
         Tupi: transaction.upi
-
-
-
     }));
     const rentOutTransactions = (data1?.dataSet?.data || []).map(transaction => {
         const rentoutCashAmount = parseInt(transaction?.rentoutCashAmount ?? 0, 10);
@@ -274,7 +304,13 @@ const DayBookInc = () => {
 
 
 
-    const allTransactions = [...bookingTransactions, ...rentOutTransactions, ...returnOutTransactions, ...canCelTransactions, ...Transactionsall];
+    const allTransactions = [
+        ...bookingTransactions,
+        ...rentOutTransactions,
+        ...returnOutTransactions,
+        ...canCelTransactions,
+        ...Transactionsall // Only allowed MongoDB categories
+    ];
 
     // console.log(allTransactions);
 
@@ -316,7 +352,6 @@ const DayBookInc = () => {
             sum +
             (parseInt(item.bookingBankAmount, 10) || 0) +
             (parseInt(item.rentoutBankAmount, 10) || 0) +
-            (parseInt(item.bank1, 10) || 0) +
             (parseInt(item.rentoutUPIAmount, 10) || 0) +
             (parseInt(item.bookingUPIAmount, 10) || 0) +
             (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
@@ -325,28 +360,30 @@ const DayBookInc = () => {
             0
         ) || 0);
 
-    const totalBankAmount1 =
-        (filteredTransactions?.reduce((sum, item) =>
+    const totalBankAmount1 = (
+        filteredTransactions?.reduce((sum, item) =>
             sum +
             (parseInt(item.bookingBank1, 10) || 0) +
-            (parseInt(item.bank1, 10) || 0) +
             (parseInt(item.rentoutBankAmount, 10) || 0) +
+            (parseInt(item.returnBankAmount, 10) || 0) +
             (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
-            (parseInt(item.returnBankAmount, 10) || 0),
+            (parseInt(item.bank1, 10) || 0),
             0
-        ) || 0);
+        ) || 0
+    );
 
 
-    const totalBankAmountupi =
-        (filteredTransactions?.reduce((sum, item) =>
+    const totalBankAmountupi = (
+        filteredTransactions?.reduce((sum, item) =>
             sum +
             (parseInt(item.rentoutUPIAmount, 10) || 0) +
             (parseInt(item.bookingUPIAmount, 10) || 0) +
-            (parseInt(item.Tupi, 10) || 0) +
             (parseInt(item.returnUPIAmount, 10) || 0) +
-            (parseInt(item.deleteUPIAmount, 10) || 0) * -1,
+            (parseInt(item.deleteUPIAmount, 10) || 0) * -1 +
+            (parseInt(item.Tupi, 10) || 0),
             0
-        ) || 0);
+        ) || 0
+    );
 
 
     const totalCash = (
@@ -354,9 +391,9 @@ const DayBookInc = () => {
             sum +
             (parseInt(item.bookingCashAmount, 10) || 0) +
             (parseInt(item.rentoutCashAmount, 10) || 0) +
+            (parseInt(item.returnCashAmount, 10) || 0) +
             (parseInt(item.cash1, 10) || 0) +
-            ((parseInt(item.deleteCashAmount, 10) || 0) * -1) + // Ensure deletion is properly subtracted
-            (parseInt(item.returnCashAmount, 10) || 0),
+            ((parseInt(item.deleteCashAmount, 10) || 0) * -1),
             0
         ) + (parseInt(preOpen?.Closecash, 10) || 0)
     );
@@ -480,6 +517,29 @@ const DayBookInc = () => {
         takeCreateCashBank()
     }, [])
 
+    // Prepare CSV data to match table logic
+    const csvData = filteredTransactions.map(transaction => ({
+      ...transaction,
+      cash:
+        -(parseInt(transaction.deleteCashAmount)) ||
+        parseInt(transaction.rentoutCashAmount) ||
+        parseInt(transaction.bookingCashAmount) ||
+        parseInt(transaction.returnCashAmount) ||
+        parseInt(transaction.cash1) || 0,
+      bank:
+        parseInt(transaction.rentoutBankAmount) ||
+        parseInt(transaction.bookingBank1) ||
+        parseInt(transaction.returnBankAmount) ||
+        parseInt(transaction.deleteBankAmount) * -1 ||
+        parseInt(transaction.bank1) || 0,
+      upi:
+        parseInt(transaction.rentoutUPIAmount) ||
+        parseInt(transaction.bookingUPIAmount) ||
+        parseInt(transaction.returnUPIAmount) ||
+        parseInt(transaction.deleteUPIAmount) * -1 ||
+        parseInt(transaction.Tupi) || 0,
+    }));
+
     return (
         <>
             <div>
@@ -597,13 +657,25 @@ const DayBookInc = () => {
                                                                     {parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
                                                                 </td>
                                                                 <td className="border p-2">
-                                                                    {-(parseInt(transaction.deleteCashAmount)) || parseInt(transaction.rentoutCashAmount) || parseInt(transaction.bookingCashAmount) || parseInt(transaction.returnCashAmount) || parseInt(transaction.cash) || 0}
+                                                                    {-(parseInt(transaction.deleteCashAmount)) ||
+                                                                     parseInt(transaction.rentoutCashAmount) ||
+                                                                     parseInt(transaction.bookingCashAmount) ||
+                                                                     parseInt(transaction.returnCashAmount) ||
+                                                                     parseInt(transaction.cash1) || 0}
                                                                 </td>
                                                                 <td className="border p-2">
-                                                                    {parseInt(transaction.rentoutBankAmount) || parseInt(transaction.bank) || parseInt(transaction.bookingBank1) || parseInt(transaction.returnBankAmount) || parseInt(transaction.deleteBankAmount) * -1 || 0}
+                                                                    {parseInt(transaction.rentoutBankAmount) ||
+                                                                     parseInt(transaction.bookingBank1) ||
+                                                                     parseInt(transaction.returnBankAmount) ||
+                                                                     parseInt(transaction.deleteBankAmount) * -1 ||
+                                                                     parseInt(transaction.bank1) || 0}
                                                                 </td>
                                                                 <td className="border p-2">
-                                                                    {parseInt(transaction.rentoutUPIAmount) || parseInt(transaction.bookingUPIAmount) || parseInt(transaction.returnUPIAmount) || parseInt(transaction.deleteUPIAmount) * -1 || parseInt(transaction.Tupi) || 0}
+                                                                    {parseInt(transaction.rentoutUPIAmount) ||
+                                                                     parseInt(transaction.bookingUPIAmount) ||
+                                                                     parseInt(transaction.returnUPIAmount) ||
+                                                                     parseInt(transaction.deleteUPIAmount) * -1 ||
+                                                                     parseInt(transaction.Tupi) || 0}
                                                                 </td>
                                                             </tr>
                                                         )}
@@ -694,7 +766,7 @@ const DayBookInc = () => {
                                             {!loading ? preOpen1?.cash && <button onClick={handlePrint} className="mt-6 w-full cursor-pointer bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2">
                                                 <span>📥 Take pdf</span>
                                             </button> : ""}
-                                            <CSVLink data={filteredTransactions} headers={headers} filename={`${currentDate} DayBook report.csv`}>
+                                            <CSVLink data={csvData} headers={headers} filename={`${currentDate} DayBook report.csv`}>
                                                 <button className="bg-blue-500 text-white ml-10  h-10  w-[100px] mt-5 p-2 rounded">Export CSV</button>
                                             </CSVLink>
                                         </div>

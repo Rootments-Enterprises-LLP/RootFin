@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Header from "../components/Header";
 import baseUrl from "../api/api";
 
@@ -8,105 +8,80 @@ const SecurityPending = () => {
     const [selectedOption, setSelectedOption] = useState("radioDefault01");
     const [remark, setRemark] = useState("");
     const [amount, setAmount] = useState("");
+    const [attachment, setAttachment] = useState("");
 
+    const fileInputRef = useRef(null); // ✅ file input ref
     const currentDate = new Date().toISOString().split("T")[0];
 
-    // const handleSubmit = async (e) => {
-    //     e.preventDefault();
+    const handleFileChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
 
-    //     try {
-    //         const parsedAmount = parseFloat(amount) || 0;
-    //         if (parsedAmount <= 0) {
-    //             alert("Please enter a valid amount.");
-    //             return;
-    //         }
-
-    //         const transactionData = {
-    //             type: "money transfer",
-    //             category: selectedOption === "radioDefault01" ? "Cash to Bank" : "Bank to Cash",
-    //             remark: remark,
-    //             locCode: currentusers.locCode,
-    //             amount: `${parsedAmount}`,
-    //             bank: 0,
-    //             upi: 0,
-    //             cash: selectedOption === "radioDefault01" ? `-${parsedAmount}` : `${parsedAmount}`,
-    //             paymentMethod: selectedOption === "radioDefault01" ? "cash" : "bank",
-    //             date: currentDate
-    //         };
-    //         const response = await fetch(`${baseUrl.baseUrl}user/createPayment`, {
-    //             method: "POST",
-    //             headers: {
-    //                 "Content-Type": "application/json"
-    //             },
-    //             body: JSON.stringify(transactionData)
-    //         });
-
-    //         const result = await response.json();
-
-    //         if (response.ok) {
-    //             alert("Transaction successfully created!");
-    //             console.log("Success:", result);
-    //         } else {
-    //             alert("Error: " + result.message);
-    //             console.error("Error:", result);
-    //         }
-
-    //         console.log(transactionData);
-    //         alert("Transaction submitted successfully!");
-    //     } catch (error) {
-    //         console.error("Error submitting transaction:", error);
-    //     }
-    // };
-
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const fullBase64 = reader.result; // includes "data:image/png;base64,..."
+            setAttachment(fullBase64);
+        };
+        reader.readAsDataURL(file);
+    };
 
     const handleSubmit = async (e) => {
-    e.preventDefault();
+        e.preventDefault();
 
-    try {
-        const parsedAmount = parseFloat(amount) || 0;
-        if (parsedAmount <= 0) {
-            alert("Please enter a valid amount.");
-            return;
+        try {
+            const parsedAmount = parseFloat(amount) || 0;
+            if (parsedAmount <= 0) {
+                alert("Please enter a valid amount.");
+                return;
+            }
+
+            const transactionData = {
+                type: "money transfer",
+                category: selectedOption === "radioDefault01" ? "Cash to Bank" : "Bank to Cash",
+                remark: remark,
+                locCode: currentusers.locCode,
+                amount: `${parsedAmount}`,
+                bank: 0,
+                upi: 0,
+                cash: selectedOption === "radioDefault01" ? `-${parsedAmount}` : `${parsedAmount}`,
+                paymentMethod: selectedOption === "radioDefault01" ? "cash" : "bank",
+                date: currentDate,
+                isSecurityReturn: selectedOption === "radioDefault01" || selectedOption === "radioDefault02",
+                attachment: selectedOption === "radioDefault01" ? attachment : ""
+            };
+
+            const response = await fetch(`${baseUrl.baseUrl}user/createPayment`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(transactionData)
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                alert("Transaction successfully created!");
+                console.log("Success:", result);
+
+                // ✅ Reset all fields
+                setAmount("");
+                setRemark("");
+                setSelectedOption("radioDefault01");
+                setAttachment("");
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = ""; // Clear the file input manually
+                }
+            } else {
+                alert("Error: " + result.message);
+                console.error("Error:", result);
+            }
+
+            console.log(transactionData);
+        } catch (error) {
+            console.error("Error submitting transaction:", error);
         }
-
-        const transactionData = {
-            type: "money transfer",
-            category: selectedOption === "radioDefault01" ? "Cash to Bank" : "Bank to Cash",
-            remark: remark,
-            locCode: currentusers.locCode,
-            amount: `${parsedAmount}`,
-            bank: 0,
-            upi: 0,
-            cash: selectedOption === "radioDefault01" ? `-${parsedAmount}` : `${parsedAmount}`,
-            paymentMethod: selectedOption === "radioDefault01" ? "cash" : "bank",
-            date: currentDate
-        };
-
-        const response = await fetch(`${baseUrl.baseUrl}user/createPayment`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(transactionData)
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-            alert("Transaction successfully created!");
-            console.log("Success:", result);
-        } else {
-            alert("Error: " + result.message);
-            console.error("Error:", result);
-        }
-
-        console.log(transactionData);
-        // ✅ Removed duplicate success alert
-        // alert("Transaction submitted successfully!");
-    } catch (error) {
-        console.error("Error submitting transaction:", error);
-    }
-};
+    };
 
     return (
         <>
@@ -131,7 +106,6 @@ const SecurityPending = () => {
                                 </label>
                             </div>
 
-
                             {currentusers.power === "admin" && (
                                 <div className="mb-2 flex items-center gap-2">
                                     <input
@@ -148,7 +122,6 @@ const SecurityPending = () => {
                                     </label>
                                 </div>
                             )}
-
                         </div>
 
                         {/* Amount & Remarks */}
@@ -165,6 +138,7 @@ const SecurityPending = () => {
                                         placeholder="Enter Amount"
                                     />
                                 </div>
+
                                 <div className="flex flex-col w-[250px] rounded-md mt-[50px]">
                                     <label htmlFor="remark">Remarks</label>
                                     <input
@@ -176,7 +150,22 @@ const SecurityPending = () => {
                                         required
                                     />
                                 </div>
+
+                                {/* Optional Attachment for Cash to Bank */}
+                                {selectedOption === "radioDefault01" && (
+                                    <div className="flex flex-col w-[250px] rounded-md mt-[50px]">
+                                        <label htmlFor="attachment">Attachment (optional)</label>
+                                        <input
+                                            type="file"
+                                            accept=".jpg,.jpeg,.png,.pdf"
+                                            onChange={handleFileChange}
+                                            className="border border-gray-500 p-2 rounded-md"
+                                            ref={fileInputRef}
+                                        />
+                                    </div>
+                                )}
                             </div>
+
                             <div>
                                 <input
                                     type="submit"
