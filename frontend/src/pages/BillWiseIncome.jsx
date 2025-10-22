@@ -1,4 +1,3 @@
-
 import { CSVLink } from "react-csv";
 import Headers from '../components/Header.jsx';
 import React, { useEffect, useMemo, useState } from "react";
@@ -21,11 +20,13 @@ const headers = [
     { label: "Remarks", key: "remarks" },
     { label: "Amount", key: "amount" },
     { label: "Total Transaction", key: "totalTransaction" },
+    { label: "Discount", key: "discountAmount" },
     { label: "Bill Value", key: "billValue" },
     { label: "security", key: "securityAmount" },
     { label: "Balance Payable", key: "Balance" },
     { label: "Remark", key: "remark" },
     { label: "Cash", key: "cash" },
+    { label: "RBL", key: "rbl" },
     { label: "Bank", key: "bank" },
     { label: "UPI", key: "upi" },
 ];
@@ -52,7 +53,8 @@ const subCategories = [
     { value: "security Refund", label: "Security Refund" },
     { value: "compensation", label: "Compensation" },
     { value: "petty expenses", label: "Petty Expenses" },
-    { value: "shoe sales", label: "Shoe Sales" }
+    { value: "shoe sales", label: "Shoe Sales" },
+    { value: "bulk amount transfer", label: "Bulk Amount Transfer" }
 ];
 
 
@@ -158,9 +160,11 @@ const DayBookInc = () => {
         const bookingCashAmount = parseInt(transaction?.bookingCashAmount || 0, 10);
         const bookingBankAmount = parseInt(transaction?.bookingBankAmount || 0, 10);
         const bookingUPIAmount = parseInt(transaction?.bookingUPIAmount || 0, 10);
+        const rblAmount = parseInt(transaction?.rblRazorPay || 0, 10);
         const invoiceAmount = parseInt(transaction?.invoiceAmount || 0, 10);
+        const discountAmount = parseInt(transaction?.discountAmount || 0, 10);
 
-        const totalAmount = bookingCashAmount + bookingBankAmount + bookingUPIAmount;
+        const totalAmount = bookingCashAmount + bookingBankAmount + bookingUPIAmount + rblAmount;
 
         return {
             ...transaction,
@@ -168,6 +172,7 @@ const DayBookInc = () => {
             bookingCashAmount,
             bookingBankAmount,
             billValue: transaction.invoiceAmount,
+            discountAmount: discountAmount,
 
             invoiceAmount,
             bookingBank1: bookingBankAmount,
@@ -176,25 +181,51 @@ const DayBookInc = () => {
             SubCategory: "Advance",
             totalTransaction: totalAmount,
             cash: bookingCashAmount,
+            rbl: rblAmount,
             bank: bookingBankAmount,
             upi: bookingUPIAmount,
             amount: totalAmount,
         };
     });
 
-    const canCelTransactions = (data3?.dataSet?.data || []).map(transaction => ({
-        ...transaction,
-        date: transaction.cancelDate,
-        Category: "Cancel",
-        SubCategory: "cancellation Refund",
-        billValue: transaction.invoiceAmount,
-        amount: parseInt(transaction.deleteUPIAmount) + parseInt(transaction.deleteCashAmount) + parseInt(transaction.deleteBankAmount),
-        totalTransaction: parseInt(transaction.deleteUPIAmount) + parseInt(transaction.deleteCashAmount) + parseInt(transaction.deleteBankAmount),
-        cash: parseInt(transaction.deleteCashAmount),
-        bank: parseInt(transaction.deleteBankAmount),
-        upi: parseInt(transaction.deleteUPIAmount),
+    const canCelTransactions = (data3?.dataSet?.data || []).map(transaction => {
+        const deleteCashAmount = -Math.abs(parseInt(transaction.deleteCashAmount || 0));
+        const deleteRblAmount = -Math.abs(parseInt(transaction.rblRazorPay || 0));
+        
+        // Only process bank/UPI if no RBL value (check original value, not negative)
+        const originalRblAmount = parseInt(transaction.rblRazorPay || 0);
+        const deleteBankAmount = originalRblAmount !== 0 ? 0 : -Math.abs(parseInt(transaction.deleteBankAmount || 0));
+        const deleteUPIAmount = originalRblAmount !== 0 ? 0 : -Math.abs(parseInt(transaction.deleteUPIAmount || 0));
 
-    }));
+        const totalAmount = deleteCashAmount + deleteRblAmount + deleteBankAmount + deleteUPIAmount;
+
+        // Debug logging for Cancel transactions
+        if (originalRblAmount !== 0) {
+            console.log('Cancel transaction RBL debug:', {
+                invoiceNo: transaction.invoiceNo,
+                rblRazorPay: transaction.rblRazorPay,
+                originalRblAmount,
+                deleteRblAmount,
+                deleteBankAmount,
+                deleteUPIAmount
+            });
+        }
+
+        return {
+            ...transaction,
+            date: transaction.cancelDate,
+            Category: "Cancel",
+            SubCategory: "cancellation Refund",
+            discountAmount: parseInt(transaction.discountAmount || 0),
+            billValue: transaction.invoiceAmount,
+            amount: totalAmount,
+            totalTransaction: totalAmount,
+            cash: deleteCashAmount,
+            rbl: deleteRblAmount,
+            bank: deleteBankAmount,
+            upi: deleteUPIAmount,
+        };
+    });
     // Only include MongoDB transactions with allowed categories (case-insensitive)
     const allowedMongoCategories = [
         "petty expenses",
@@ -208,6 +239,7 @@ const DayBookInc = () => {
         "asset purchase",
         "promotion_services",
         "spot incentive",
+        "bulk amount transfer",
         "other expenses",
         "shoe sales return",
         "shirt sales return",
@@ -233,8 +265,10 @@ const DayBookInc = () => {
         cash1: transaction.cash,
         bank1: transaction.bank,
         subCategory: transaction.category,
+        discountAmount: parseInt(transaction.discountAmount || 0),
         billValue: transaction.amount,
-        Tupi: transaction.upi
+        Tupi: transaction.upi,
+        rbl: transaction.rbl || transaction.rblRazorPay || 0
     }));
     const rentOutTransactions = (data1?.dataSet?.data || []).map(transaction => {
         const rentoutCashAmount = parseInt(transaction?.rentoutCashAmount ?? 0, 10);
@@ -243,6 +277,7 @@ const DayBookInc = () => {
 
         const advanceAmount = parseInt(transaction?.advanceAmount ?? 0, 10);
         const rentoutUPIAmount = parseInt(transaction?.rentoutUPIAmount ?? 0, 10);
+        const rblAmount = parseInt(transaction?.rblRazorPay ?? 0, 10);
         const securityAmount = parseInt(transaction?.securityAmount ?? 0, 10);
 
         return {
@@ -251,6 +286,7 @@ const DayBookInc = () => {
             rentoutCashAmount,
             rentoutBankAmount,
             invoiceAmount,
+            discountAmount: parseInt(transaction.discountAmount || 0),
             billValue: transaction.invoiceAmount,
 
             securityAmount,
@@ -260,11 +296,12 @@ const DayBookInc = () => {
             Category: "RentOut",
             SubCategory: "Security",
             SubCategory1: "Balance Payable",
-            totalTransaction: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount,
+            totalTransaction: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount + rblAmount,
             cash: rentoutCashAmount,
+            rbl: rblAmount,
             bank: rentoutBankAmount,
             upi: rentoutUPIAmount,
-            amount: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount,
+            amount: rentoutCashAmount + rentoutBankAmount + rentoutUPIAmount + rblAmount,
         };
     });
 
@@ -273,14 +310,18 @@ const DayBookInc = () => {
     //return
 
     const returnOutTransactions = (data2?.dataSet?.data || []).map(transaction => {
-        const returnBankAmount = -(parseInt(transaction?.returnBankAmount || 0, 10));
         const returnCashAmount = -(parseInt(transaction?.returnCashAmount || 0, 10));
-        const returnUPIAmount = -(parseInt(transaction?.returnUPIAmount || 0, 10));
+        const returnRblAmount = -(parseInt(transaction?.rblRazorPay || 0, 10));
+        
+        // Only process bank/UPI if no RBL value
+        const returnBankAmount = returnRblAmount !== 0 ? 0 : -(parseInt(transaction?.returnBankAmount || 0, 10));
+        const returnUPIAmount = returnRblAmount !== 0 ? 0 : -(parseInt(transaction?.returnUPIAmount || 0, 10));
+        
         const invoiceAmount = parseInt(transaction?.invoiceAmount || 0, 10);
         const advanceAmount = parseInt(transaction?.advanceAmount || 0, 10);
         const RsecurityAmount = -(parseInt(transaction?.securityAmount || 0, 10));
 
-        const totalAmount = returnBankAmount + returnCashAmount + returnUPIAmount;
+        const totalAmount = returnCashAmount + returnRblAmount + returnBankAmount + returnUPIAmount;
 
         return {
             ...transaction,
@@ -290,6 +331,7 @@ const DayBookInc = () => {
             returnUPIAmount,
             invoiceAmount,
             advanceAmount,
+            discountAmount: parseInt(transaction.discountAmount || 0),
             billValue: invoiceAmount,
             amount: totalAmount,
             totalTransaction: totalAmount,
@@ -297,6 +339,7 @@ const DayBookInc = () => {
             Category: "Return",
             SubCategory: "Security Refund",
             cash: returnCashAmount,
+            rbl: returnRblAmount,
             bank: returnBankAmount,
             upi: returnUPIAmount,
         };
@@ -363,11 +406,7 @@ const DayBookInc = () => {
     const totalBankAmount1 = (
         filteredTransactions?.reduce((sum, item) =>
             sum +
-            (parseInt(item.bookingBank1, 10) || 0) +
-            (parseInt(item.rentoutBankAmount, 10) || 0) +
-            (parseInt(item.returnBankAmount, 10) || 0) +
-            (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
-            (parseInt(item.bank1, 10) || 0),
+            (parseInt(item.bank, 10) || 0),
             0
         ) || 0
     );
@@ -376,11 +415,15 @@ const DayBookInc = () => {
     const totalBankAmountupi = (
         filteredTransactions?.reduce((sum, item) =>
             sum +
-            (parseInt(item.rentoutUPIAmount, 10) || 0) +
-            (parseInt(item.bookingUPIAmount, 10) || 0) +
-            (parseInt(item.returnUPIAmount, 10) || 0) +
-            (parseInt(item.deleteUPIAmount, 10) || 0) * -1 +
-            (parseInt(item.Tupi, 10) || 0),
+            (parseInt(item.upi, 10) || 0),
+            0
+        ) || 0
+    );
+
+    const totalRblAmount = (
+        filteredTransactions?.reduce((sum, item) =>
+            sum +
+            (parseInt(item.rbl, 10) || 0),
             0
         ) || 0
     );
@@ -389,11 +432,7 @@ const DayBookInc = () => {
     const totalCash = (
         filteredTransactions?.reduce((sum, item) =>
             sum +
-            (parseInt(item.bookingCashAmount, 10) || 0) +
-            (parseInt(item.rentoutCashAmount, 10) || 0) +
-            (parseInt(item.returnCashAmount, 10) || 0) +
-            (parseInt(item.cash1, 10) || 0) +
-            ((parseInt(item.deleteCashAmount, 10) || 0) * -1),
+            (parseInt(item.cash, 10) || 0),
             0
         ) + (parseInt(preOpen?.Closecash, 10) || 0)
     );
@@ -526,6 +565,7 @@ const DayBookInc = () => {
         parseInt(transaction.bookingCashAmount) ||
         parseInt(transaction.returnCashAmount) ||
         parseInt(transaction.cash1) || 0,
+      rbl: parseInt(transaction.rbl) || 0,
       bank:
         parseInt(transaction.rentoutBankAmount) ||
         parseInt(transaction.bookingBank1) ||
@@ -586,18 +626,20 @@ const DayBookInc = () => {
                                                 <th className="border p-2">Remarks</th>
                                                 <th className="border p-2">Amount</th>
                                                 <th className="border p-2">Total Transaction</th>
+                                                <th className="border p-2">Discount</th>
                                                 <th className="border p-2">Bill Value</th>
                                                 <th className="border p-2">Cash</th>
+                                                <th className="border p-2">RBL</th> {/* <-- NEW COLUMN */}
                                                 <th className="border p-2">Bank</th>
                                                 <th className="border p-2">UPI</th>
                                             </tr>
                                         </thead>
-
                                         <tbody>
                                             {/* Opening Balance Row */}
                                             <tr className="bg-gray-100 font-bold">
-                                                <td colSpan="9" className="border p-2">OPENING BALANCE</td>
+                                                <td colSpan="10" className="border p-2">OPENING BALANCE</td>
                                                 <td className="border p-2">{preOpen.Closecash}</td>
+                                                <td className="border p-2">{preOpen.rbl ?? 0}</td> {/* <-- NEW CELL */}
                                                 <td className="border p-2">0</td>
                                                 <td className="border p-2">0</td>
                                             </tr>
@@ -619,8 +661,10 @@ const DayBookInc = () => {
                                                                     <td rowSpan="2" className="border p-2">
                                                                         {transaction.securityAmount + transaction.Balance}
                                                                     </td>
+                                                                    <td rowSpan="2" className="border p-2">{transaction.discountAmount || 0}</td>
                                                                     <td rowSpan="2" className="border p-2">{transaction.invoiceAmount}</td>
                                                                     <td rowSpan="2" className="border p-2">{transaction.rentoutCashAmount || 0}</td>
+                                                                    <td rowSpan="2" className="border p-2">{transaction.rbl ?? 0}</td> {/* <-- NEW CELL */}
                                                                     <td rowSpan="2" className="border p-2">{parseInt(transaction.rentoutBankAmount) || 0}</td>
                                                                     <td rowSpan="2" className="border p-2">{parseInt(transaction.rentoutUPIAmount) || 0}</td>
                                                                 </tr>
@@ -654,28 +698,44 @@ const DayBookInc = () => {
                                                                         parseInt(transaction.amount || -(parseInt(transaction.deleteBankAmount || 0) + parseInt(transaction.deleteCashAmount || 0)) || 0)}
                                                                 </td>
                                                                 <td className="border p-2">
+                                                                    {transaction.discountAmount || 0}
+                                                                </td>
+                                                                <td className="border p-2">
                                                                     {parseInt(transaction.invoiceAmount) || parseInt(transaction.amount) || 0}
                                                                 </td>
                                                                 <td className="border p-2">
-                                                                    {-(parseInt(transaction.deleteCashAmount)) ||
+                                                                    {transaction.Category === 'Cancel' ? 
+                                                                        (parseInt(transaction.cash) || 0) :
+                                                                        -(parseInt(transaction.deleteCashAmount)) ||
                                                                      parseInt(transaction.rentoutCashAmount) ||
                                                                      parseInt(transaction.bookingCashAmount) ||
                                                                      parseInt(transaction.returnCashAmount) ||
                                                                      parseInt(transaction.cash1) || 0}
                                                                 </td>
+                                                                <td className="border p-2">{transaction.rbl ?? 0}</td> {/* <-- NEW CELL */}
                                                                 <td className="border p-2">
-                                                                    {parseInt(transaction.rentoutBankAmount) ||
-                                                                     parseInt(transaction.bookingBank1) ||
-                                                                     parseInt(transaction.returnBankAmount) ||
-                                                                     parseInt(transaction.deleteBankAmount) * -1 ||
-                                                                     parseInt(transaction.bank1) || 0}
+                                                                    {transaction.Category === 'Return' ? 
+                                                                        (parseInt(transaction.returnBankAmount) || 0) :
+                                                                        transaction.Category === 'Cancel' ?
+                                                                        (parseInt(transaction.bank) || 0) :
+                                                                        transaction.Category === 'RentOut' ?
+                                                                        (parseInt(transaction.rentoutBankAmount) || 0) :
+                                                                        transaction.Category === 'Booking' ?
+                                                                        (parseInt(transaction.bookingBank1) || 0) :
+                                                                        (parseInt(transaction.bank1) || 0)
+                                                                    }
                                                                 </td>
                                                                 <td className="border p-2">
-                                                                    {parseInt(transaction.rentoutUPIAmount) ||
-                                                                     parseInt(transaction.bookingUPIAmount) ||
-                                                                     parseInt(transaction.returnUPIAmount) ||
-                                                                     parseInt(transaction.deleteUPIAmount) * -1 ||
-                                                                     parseInt(transaction.Tupi) || 0}
+                                                                    {transaction.Category === 'Return' ? 
+                                                                        (parseInt(transaction.returnUPIAmount) || 0) :
+                                                                        transaction.Category === 'Cancel' ?
+                                                                        (parseInt(transaction.upi) || 0) :
+                                                                        transaction.Category === 'RentOut' ?
+                                                                        (parseInt(transaction.rentoutUPIAmount) || 0) :
+                                                                        transaction.Category === 'Booking' ?
+                                                                        (parseInt(transaction.bookingUPIAmount) || 0) :
+                                                                        (parseInt(transaction.Tupi) || 0)
+                                                                    }
                                                                 </td>
                                                             </tr>
                                                         )}
@@ -683,15 +743,16 @@ const DayBookInc = () => {
                                                 ))
                                             ) : (
                                                 <tr>
-                                                    <td colSpan="12" className="text-center border p-4">No transactions found</td>
+                                                    <td colSpan="14" className="text-center border p-4">No transactions found</td>
                                                 </tr>
                                             )}
                                         </tbody>
 
                                         <tfoot>
                                             <tr className="bg-white text-center font-semibold">
-                                                <td colSpan="9" className="border border-gray-300 px-4 py-2 text-left">Total:</td>
+                                                <td colSpan="10" className="border border-gray-300 px-4 py-2 text-left">Total:</td>
                                                 <td className="border border-gray-300 px-4 py-2">{totalCash}</td>
+                                                <td className="border border-gray-300 px-4 py-2">{totalRblAmount}</td> {/* <-- RBL total */}
                                                 <td className="border border-gray-300 px-4 py-2">{totalBankAmount1}</td>
                                                 <td className="border border-gray-300 px-4 py-2">{totalBankAmountupi}</td>
                                             </tr>

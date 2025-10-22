@@ -5,6 +5,9 @@ import baseUrl from "../api/api";
 
 // Raw location data
 const rawLocations = [
+    { value: "Production", locCode: "101" },
+    { value: "Office", locCode: "102" },
+    { value: "WAREHOUSE", locCode: "103" },
     { value: "Z-Edapally1", locCode: "144" },
     { value: "G-Edappally", locCode: "702" },
     { value: "SG-Trivandrum", locCode: "700" },
@@ -24,6 +27,7 @@ const rawLocations = [
     { value: "G.Palakkad ", locCode: "705" },
     { value: "G.Kalpetta", locCode: "717" },
     { value: "G.Kannur", locCode: "716" },
+    { value: "G.MG Road", locCode: "718" },
 ];
 
 const AllLocations = rawLocations.map((loc) => ({

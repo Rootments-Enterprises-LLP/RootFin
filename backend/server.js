@@ -37,9 +37,8 @@ app.use(
   })
 );
 
-app.get('/', (req, res) => {
-  res.send('App is running');
-});
+// ── routes ──────────────────────────────────────────────────
+app.get("/", (_req, res) => res.send("App is running"));
 
 app.use("/user",    UserRouter);
 app.use("/api/tws", TwsRoutes);
@@ -49,5 +48,3 @@ app.listen(PORT, () => {
   connectMongoDB(env);
   console.log(`🚀  Server listening on :${PORT}`);
 });
-
-console.log("Auto-deploy test at " + new Date());
