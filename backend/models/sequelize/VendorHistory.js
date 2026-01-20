@@ -73,9 +73,11 @@ const VendorHistory = sequelize.define('VendorHistory', {
   indexes: [
     {
       fields: ['vendorId', 'changedAt'],
+      name: 'vendor_histories_vendor_date_idx',
     },
     {
       fields: ['eventType'],
+      name: 'vendor_histories_event_type_idx',
     },
   ],
 });
