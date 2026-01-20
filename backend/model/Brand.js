@@ -30,7 +30,7 @@ const BrandSchema = new mongoose.Schema(
 );
 
 // Index for faster lookups
-BrandSchema.index({ name: 1 });
+// Note: name unique index is already defined in schema field
 BrandSchema.index({ isActive: 1 });
 
 const Brand = mongoose.model("Brand", BrandSchema);

@@ -93,7 +93,7 @@ transferOrderSchema.index({ userId: 1, date: -1 });
 transferOrderSchema.index({ sourceWarehouse: 1, status: 1 });
 transferOrderSchema.index({ destinationWarehouse: 1, status: 1 });
 transferOrderSchema.index({ status: 1 });
-transferOrderSchema.index({ transferOrderNumber: 1 }, { unique: true });
+// Note: transferOrderNumber unique index is already defined in schema field
 transferOrderSchema.index({ postgresId: 1 });
 
 const TransferOrder = mongoose.model("TransferOrder", transferOrderSchema);

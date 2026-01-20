@@ -106,7 +106,7 @@ const storeOrderSchema = new mongoose.Schema(
 storeOrderSchema.index({ userId: 1, date: -1 });
 storeOrderSchema.index({ storeWarehouse: 1, status: 1 });
 storeOrderSchema.index({ status: 1 });
-storeOrderSchema.index({ orderNumber: 1 }, { unique: true });
+// Note: orderNumber unique index is already defined in schema field
 storeOrderSchema.index({ transferOrderId: 1 });
 storeOrderSchema.index({ postgresId: 1 });
 

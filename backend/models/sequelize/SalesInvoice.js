@@ -156,10 +156,12 @@ const SalesInvoice = sequelize.define('SalesInvoice', {
   timestamps: true,
   indexes: [
     {
-      fields: ['userId', 'createdAt']
+      fields: ['userId', 'createdAt'],
+      name: 'sales_invoices_user_date_idx'
     },
     {
       fields: ['invoiceNumber'],
+      name: 'sales_invoices_number_idx',
       unique: true
     }
   ]
