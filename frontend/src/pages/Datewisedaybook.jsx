@@ -1,5 +1,6 @@
 import Headers from '../components/Header.jsx';
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 import Select from "react-select";
 import useFetch from '../hooks/useFetch.jsx';
 import baseUrl from '../api/api.js';
@@ -228,7 +229,7 @@ const Datewisedaybook = () => {
       const returnList = (returnData?.dataSet?.data || []).map(item => {
         const returnCashAmount = -Math.abs(Number(item.returnCashAmount || 0));
         const returnRblAmount = -Math.abs(Number(item.rblRazorPay || 0));
-        
+       
         // ✅ Only process bank/UPI if no RBL value
         const returnBankAmount = returnRblAmount !== 0 ? 0 : -Math.abs(Number(item.returnBankAmount || 0));
         const returnUPIAmount = returnRblAmount !== 0 ? 0 : -Math.abs(Number(item.returnUPIAmount || 0));
@@ -256,7 +257,7 @@ const Datewisedaybook = () => {
       const deleteList = (deleteData?.dataSet?.data || []).map(item => {
         const deleteCashAmount = -Math.abs(Number(item.deleteCashAmount || 0));
         const deleteRblAmount = -Math.abs(Number(item.rblRazorPay || 0));
-        
+       
         // ✅ Only process bank/UPI if no RBL value
         const deleteBankAmount = deleteRblAmount !== 0 ? 0 : -Math.abs(Number(item.deleteBankAmount || 0));
         const deleteUPIAmount = deleteRblAmount !== 0 ? 0 : -Math.abs(Number(item.deleteUPIAmount || 0));
@@ -475,7 +476,7 @@ const Datewisedaybook = () => {
       const returnList = (returnData?.dataSet?.data || []).map(item => {
         const returnCashAmount = -Math.abs(Number(item.returnCashAmount || 0));
         const returnRblAmount = -Math.abs(Number(item.rblRazorPay || 0));
-        
+       
         // ✅ Only process bank/UPI if no RBL value
         const returnBankAmount = returnRblAmount !== 0 ? 0 : -Math.abs(Number(item.returnBankAmount || 0));
         const returnUPIAmount = returnRblAmount !== 0 ? 0 : -Math.abs(Number(item.returnUPIAmount || 0));
@@ -504,7 +505,7 @@ const Datewisedaybook = () => {
       const deleteList = (deleteData?.dataSet?.data || []).map(item => {
         const deleteCashAmount = -Math.abs(Number(item.deleteCashAmount || 0));
         const deleteRblAmount = -Math.abs(Number(item.rblRazorPay || 0));
-        
+       
         // ✅ Only process bank/UPI if no RBL value
         const deleteBankAmount = deleteRblAmount !== 0 ? 0 : -Math.abs(Number(item.deleteBankAmount || 0));
         const deleteUPIAmount = deleteRblAmount !== 0 ? 0 : -Math.abs(Number(item.deleteUPIAmount || 0));
@@ -618,13 +619,13 @@ const Datewisedaybook = () => {
       });
 
       const allTransactions = [...finalTws, ...mongoList];
-  
+ 
       const deduped = Array.from(
         new Map(
           allTransactions.map((tx) => {
             const dateKey = new Date(tx.date).toISOString().split("T")[0];
             const key = `${tx.invoiceNo || tx._id || tx.locCode}-${dateKey}-${tx.Category || ""}`;
-          
+         
             return [key, tx];
           })
         ).values()
@@ -796,11 +797,11 @@ const Datewisedaybook = () => {
   const returnOutTransactions = (data2?.dataSet?.data || []).map(transaction => {
     const returnCashAmount = -(parseInt(transaction?.returnCashAmount || 0, 10));
     const returnRblAmount = -(parseInt(transaction?.rblRazorPay || 0, 10)); // ✅ Added RBL
-    
+   
     // ✅ Only process bank/UPI if no RBL value
     const returnBankAmount = returnRblAmount !== 0 ? 0 : -(parseInt(transaction?.returnBankAmount || 0, 10));
     const returnUPIAmount = returnRblAmount !== 0 ? 0 : -(parseInt(transaction?.returnUPIAmount || 0, 10));
-    
+   
     const invoiceAmount = parseInt(transaction?.invoiceAmount || 0, 10);
     const advanceAmount = parseInt(transaction?.advanceAmount || 0, 10);
     const RsecurityAmount = -(parseInt(transaction?.securityAmount || 0, 10));
@@ -855,7 +856,7 @@ const Datewisedaybook = () => {
   const canCelTransactions = (data4?.dataSet?.data || []).map(transaction => {
     const deleteCashAmount = parseInt(transaction.deleteCashAmount || 0);
     const deleteRblAmount = parseInt(transaction.rblRazorPay || 0); // ✅ Added RBL
-    
+   
     // ✅ Only process bank/UPI if no RBL value
     const deleteBankAmount = deleteRblAmount !== 0 ? 0 : parseInt(transaction.deleteBankAmount || 0);
     const deleteUPIAmount = deleteRblAmount !== 0 ? 0 : parseInt(transaction.deleteUPIAmount || 0);
@@ -1266,6 +1267,13 @@ const Datewisedaybook = () => {
     }
   };
 
+  // Enter key to save transaction (only when editing)
+  useEnterToSave(() => {
+    if (editingIndex !== null) {
+      handleSave();
+    }
+  }, editingIndex === null);
+
   return (
     <>
       <Helmet>
@@ -1305,8 +1313,8 @@ const Datewisedaybook = () => {
                 onClick={handleFetch}
                 disabled={isFetching}
                 className={`h-[40px] mt-6 rounded-md text-white px-10 transition duration-150 ${
-                  isFetching 
-                    ? 'bg-gray-400 cursor-not-allowed' 
+                  isFetching
+                    ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-blue-500 hover:bg-blue-600 active:scale-95 active:bg-blue-700 hover:shadow-lg cursor-pointer'
                 }`}
               >
@@ -1328,8 +1336,8 @@ const Datewisedaybook = () => {
                   onChange={setSelectedCategory}
                   menuPortalTarget={document.body}
                   styles={{
-                    control: base => ({ 
-                      ...base, 
+                    control: base => ({
+                      ...base,
                       minHeight: '40px',
                       height: '40px',
                       border: '1px solid #d1d5db',
@@ -1370,8 +1378,8 @@ const Datewisedaybook = () => {
                   onChange={setSelectedSubCategory}
                   menuPortalTarget={document.body}
                   styles={{
-                    control: base => ({ 
-                      ...base, 
+                    control: base => ({
+                      ...base,
                       minHeight: '40px',
                       height: '40px',
                       border: '1px solid #d1d5db',
@@ -1405,7 +1413,7 @@ const Datewisedaybook = () => {
                 />
               </div>
             </div>
-            
+           
             <div className="flex justify-end mb-6 w-[800px]">
               <div className='w-48 flex flex-col'>
                 <label>Store</label>

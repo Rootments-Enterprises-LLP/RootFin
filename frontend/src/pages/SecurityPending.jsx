@@ -1,6 +1,8 @@
 import { useState, useRef } from "react";
 import Header from "../components/Header";
+import SingleImageUpload from "../components/SingleImageUpload";
 import baseUrl from "../api/api";
+import { useEnterToSave } from "../hooks/useEnterToSave";
 
 const SecurityPending = () => {
     const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
@@ -8,23 +10,10 @@ const SecurityPending = () => {
     const [selectedOption, setSelectedOption] = useState("radioDefault01");
     const [remark, setRemark] = useState("");
     const [amount, setAmount] = useState("");
-    const [attachment, setAttachment] = useState("");
+    const [attachment, setAttachment] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const fileInputRef = useRef(null); // ✅ file input ref
     const currentDate = new Date().toISOString().split("T")[0];
-
-    const handleFileChange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const fullBase64 = reader.result; // includes "data:image/png;base64,..."
-            setAttachment(fullBase64);
-        };
-        reader.readAsDataURL(file);
-    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -53,7 +42,7 @@ const SecurityPending = () => {
                 paymentMethod: selectedOption === "radioDefault01" ? "cash" : "bank",
                 date: currentDate,
                 isSecurityReturn: selectedOption === "radioDefault01" || selectedOption === "radioDefault02",
-                attachment: selectedOption === "radioDefault01" ? attachment : ""
+                attachment: selectedOption === "radioDefault01" && attachment ? attachment.base64 : ""
             };
 
             const response = await fetch(`${baseUrl.baseUrl}user/createPayment`, {
@@ -74,10 +63,7 @@ const SecurityPending = () => {
                 setAmount("");
                 setRemark("");
                 setSelectedOption("radioDefault01");
-                setAttachment("");
-                if (fileInputRef.current) {
-                    fileInputRef.current.value = ""; // Clear the file input manually
-                }
+                setAttachment(null);
             } else {
                 alert("Error: " + result.message);
                 console.error("Error:", result);
@@ -91,6 +77,14 @@ const SecurityPending = () => {
             setIsSubmitting(false);
         }
     };
+
+    // Enter key to submit form (works alongside form onSubmit)
+    useEnterToSave(() => {
+        if (!isSubmitting) {
+            const syntheticEvent = { preventDefault: () => {} };
+            handleSubmit(syntheticEvent);
+        }
+    }, isSubmitting);
 
     return (
         <>
@@ -162,14 +156,11 @@ const SecurityPending = () => {
 
                                 {/* Optional Attachment for Cash to Bank */}
                                 {selectedOption === "radioDefault01" && (
-                                    <div className="flex flex-col w-[250px] rounded-md mt-[50px]">
-                                        <label htmlFor="attachment">Attachment (optional)</label>
-                                        <input
-                                            type="file"
-                                            accept=".jpg,.jpeg,.png,.pdf"
-                                            onChange={handleFileChange}
-                                            className="border border-gray-500 p-2 rounded-md"
-                                            ref={fileInputRef}
+                                    <div className="flex flex-col w-[300px] rounded-md mt-[50px]">
+                                        <label className="mb-3 font-medium text-gray-700">Attachment (optional)</label>
+                                        <SingleImageUpload
+                                            onImageSelect={setAttachment}
+                                            existingImage={attachment}
                                         />
                                     </div>
                                 )}

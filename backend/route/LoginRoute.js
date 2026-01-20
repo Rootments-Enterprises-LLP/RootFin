@@ -1,7 +1,7 @@
 import express from 'express';
-import { Login, SignUp } from '../controllers/LoginAndSignup.js';
+import { Login, SignUp, GetAllStores, ResetPassword } from '../controllers/LoginAndSignup.js';
 import { CreatePayment, GetPayment } from '../controllers/TransactionController.js';
-import { CloseController, GetAllCloseData, GetCloseController } from '../controllers/CloseController.js';
+import { CloseController, GetAllCloseData, GetCloseController, getFinancialSummaryWithEdit } from '../controllers/CloseController.js';
 import { editTransaction} from '../controllers/EditController.js';
 import Transaction from '../model/Transaction.js';
 import {DownloadAttachment} from "../controllers/TransactionController.js";
@@ -44,6 +44,51 @@ router.post('/signin', SignUp)
  *         description: Internal server error.
  */
 router.post('/login', Login)
+
+/**
+ * @swagger
+ * /getAllStores:
+ *   get:
+ *     summary: Retrieve all stores
+ *     description: Fetches all stores/users from the database.
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved stores.
+ *       500:
+ *         description: Internal server error.
+ */
+router.get('/getAllStores', GetAllStores)
+
+/**
+ * @swagger
+ * /reset-password:
+ *   post:
+ *     summary: Reset user password (Admin only)
+ *     description: Endpoint to reset a user's password. Admin users can reset any user's password.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 description: Email of the user whose password needs to be reset
+ *               newPassword:
+ *                 type: string
+ *                 description: New password for the user
+ *     responses:
+ *       200:
+ *         description: Password reset successfully.
+ *       400:
+ *         description: Bad Request, validation errors.
+ *       404:
+ *         description: User not found.
+ *       500:
+ *         description: Internal server error.
+ */
+router.post('/reset-password', ResetPassword)
 
 
 /**
@@ -185,10 +230,36 @@ router.get('/getTransactions', async (req, res) => {
 router.post('/syncTransaction', async (req, res) => {
   try {
     console.log("Incoming sync data:", req.body);
-    const newTransaction = await Transaction.create(req.body);
+    
+    // Check if transaction with this invoiceNo already exists
+    const existingTransaction = await Transaction.findOne({ 
+      invoiceNo: req.body.invoiceNo,
+      locCode: req.body.locCode 
+    });
+    
+    if (existingTransaction) {
+      // Update existing transaction
+      const updatedTransaction = await Transaction.findByIdAndUpdate(
+        existingTransaction._id,
+        {
+          ...req.body,
+          editedBy: req.body.editedBy || "sync",
+          editedAt: new Date()
+        },
+        { new: true }
+      );
+      return res.status(200).json({ message: "Updated", data: updatedTransaction });
+    }
+    
+    // Create new transaction with editedBy set
+    const newTransaction = await Transaction.create({
+      ...req.body,
+      editedBy: req.body.editedBy || "sync",
+      editedAt: new Date()
+    });
     return res.status(201).json({ message: "Synced", data: newTransaction });
   } catch (err) {
-    console.error("Sync error:", err); // this shows the exact line failing
+    console.error("Sync error:", err);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -205,6 +276,41 @@ router.put('/editTransaction/:id', editTransaction);
 
 
 router.get("/transaction/:id/attachment", DownloadAttachment);
+
+/**
+ * @swagger
+ * /financialSummaryWithEdit:
+ *   get:
+ *     summary: Get Financial Summary with Edit Support
+ *     description: Retrieves financial summary data with individual transactions for editing
+ *     parameters:
+ *       - in: query
+ *         name: locCode
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Location code
+ *       - in: query
+ *         name: date
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Date in YYYY-MM-DD format
+ *       - in: query
+ *         name: role
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User role (admin/super_admin)
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved financial summary with edit support
+ *       400:
+ *         description: Missing required parameters
+ *       500:
+ *         description: Server error
+ */
+router.get('/financialSummaryWithEdit', getFinancialSummaryWithEdit);
 
 
 

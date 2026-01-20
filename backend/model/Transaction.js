@@ -103,6 +103,7 @@ const transactionSchema = new mongoose.Schema(
     invoiceNo:    { type: String, required: true, unique: true },
 
     category:     { type: String, required: true },
+    subCategory:  { type: String, default: "" }, // Added missing subCategory field
 
     remark:       { type: String, default: "" },
 
@@ -111,6 +112,7 @@ const transactionSchema = new mongoose.Schema(
     amount:       { type: String,  required: true },
 
     cash:         { type: String,  required: true },
+    rbl:          { type: String,  default: "0" },
     bank:         { type: String,  required: true },
     upi:          { type: String,  required: true },
 
@@ -128,6 +130,11 @@ const transactionSchema = new mongoose.Schema(
     Balance:         { type: Number, default: 0 },
     subCategory1:    { type: String, default: "" },
     totalTransaction:{ type: Number, default: 0 },
+
+    /* Edit tracking fields */
+    editedBy:     { type: String },
+    editedAt:     { type: Date },
+    editReason:   { type: String, default: "" },
 
     /* 🔺 NEW – stores the uploaded file inside MongoDB */
     attachment: {
