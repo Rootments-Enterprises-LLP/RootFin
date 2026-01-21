@@ -516,16 +516,18 @@ const DayBookInc = () => {
     const selectedSubCategoryValue = selectedSubCategory?.value?.toLowerCase() || "all";
 
     // ✅ Use dedupedTransactions instead of allTransactions to prevent duplicates
-    const filteredTransactions = dedupedTransactions.filter((t) =>
-        (selectedCategoryValue === "all" || (t.category?.toLowerCase() === selectedCategoryValue || t.Category?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue)) &&
-        (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
-    );
+    const filteredTransactions = useMemo(() => {
+        return dedupedTransactions.filter((t) =>
+            (selectedCategoryValue === "all" || (t.category?.toLowerCase() === selectedCategoryValue || t.Category?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue || t.type?.toLowerCase() === selectedCategoryValue)) &&
+            (selectedSubCategoryValue === "all" || (t.subCategory?.toLowerCase() === selectedSubCategoryValue || t.SubCategory?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.type?.toLowerCase() === selectedSubCategoryValue || t.subCategory1?.toLowerCase() === selectedSubCategoryValue || t.SubCategory1?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue || t.category?.toLowerCase() === selectedSubCategoryValue))
+        );
+    }, [dedupedTransactions, selectedCategoryValue, selectedSubCategoryValue]);
 
 
 
 
-    // console.log(allTransactions);
-    const totalBankAmount =
+    // ✅ Memoize totals to avoid recalculating on every render
+    const totalBankAmount = useMemo(() =>
         (filteredTransactions?.reduce((sum, item) =>
             sum +
             (parseInt(item.bookingBankAmount, 10) || 0) +
@@ -533,44 +535,44 @@ const DayBookInc = () => {
             (parseInt(item.rentoutUPIAmount, 10) || 0) +
             (parseInt(item.bookingUPIAmount, 10) || 0) +
             (parseInt(item.deleteBankAmount, 10) || 0) * -1 +
-            (parseInt(item.deleteUPIAmount, 10) || 0) * -1 + // Ensure negative value is applied correctly
+            (parseInt(item.deleteUPIAmount, 10) || 0) * -1 +
             (parseInt(item.returnBankAmount, 10) || 0),
             0
-        ) || 0);
+        ) || 0), [filteredTransactions]);
 
-    const totalBankAmount1 = (
+    const totalBankAmount1 = useMemo(() => (
         filteredTransactions?.reduce((sum, item) =>
             sum +
             (parseInt(item.bank, 10) || 0),
             0
         ) || 0
-    );
+    ), [filteredTransactions]);
 
 
-    const totalBankAmountupi = (
+    const totalBankAmountupi = useMemo(() => (
         filteredTransactions?.reduce((sum, item) =>
             sum +
             (parseInt(item.upi, 10) || 0),
             0
         ) || 0
-    );
+    ), [filteredTransactions]);
 
-    const totalRblAmount = (
+    const totalRblAmount = useMemo(() => (
         filteredTransactions?.reduce((sum, item) =>
             sum +
             (parseInt(item.rbl, 10) || 0),
             0
         ) || 0
-    );
+    ), [filteredTransactions]);
 
 
-    const totalCash = (
+    const totalCash = useMemo(() => (
         filteredTransactions?.reduce((sum, item) =>
             sum +
             (parseInt(item.cash, 10) || 0),
             0
         ) + (parseInt(preOpen?.Closecash, 10) || 0)
-    );
+    ), [filteredTransactions, preOpen?.Closecash]);
     const savedData = {
         date,
         locCode,
@@ -978,7 +980,7 @@ const DayBookInc = () => {
     }, editingIndex === null);
 
     // Prepare CSV data to match table logic
-    const csvData = filteredTransactions.map(transaction => ({
+    const csvData = useMemo(() => filteredTransactions.map(transaction => ({
       ...transaction,
       cash:
         -(parseInt(transaction.deleteCashAmount)) ||
@@ -999,7 +1001,7 @@ const DayBookInc = () => {
         parseInt(transaction.returnUPIAmount) ||
         parseInt(transaction.deleteUPIAmount) * -1 ||
         parseInt(transaction.Tupi) || 0,
-    }));
+    })), [filteredTransactions]);
 
     return (
         <>

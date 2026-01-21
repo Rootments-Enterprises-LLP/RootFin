@@ -103,7 +103,6 @@ const Datewisedaybook = () => {
   const [apiUrl3, setApiUrl3] = useState("");
   const [apiUrl4, setApiUrl4] = useState("");
   const [apiUrl5, setApiUrl5] = useState("");
-  console.log(apiUrl5);
 
   const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
 
@@ -111,14 +110,17 @@ const Datewisedaybook = () => {
 
   const [selectedStore, setSelectedStore] = useState("current");
   const [allStoresSummary, setAllStoresSummary] = useState([]);
-  const [allStoresTotals, setAllStoresTotals] = useState({ cash: 0, rbl: 0, bank: 0, upi: 0, amount: 0 }); // ✅ Added rbl
+  const [allStoresTotals, setAllStoresTotals] = useState({ cash: 0, rbl: 0, bank: 0, upi: 0, amount: 0 });
+  
+  // ✅ Add loading state to prevent multiple simultaneous fetches
+  const [isFetching, setIsFetching] = useState(false);
 
   const handleFetch = async () => {
+    // ✅ Prevent multiple simultaneous fetches
+    if (isFetching) return;
+    
     setIsFetching(true);
     setPreOpen([]);
-
-    const prev = new Date(new Date(fromDate));
-    prev.setDate(prev.getDate() - 1);
 
     const prevDayStr = new Date(fromDate) < new Date("2025-01-01")
       ? "2025-01-01"
@@ -134,7 +136,6 @@ const Datewisedaybook = () => {
 
     setApiUrl(bookingU); setApiUrl1(rentoutU); setApiUrl2(returnU);
     setApiUrl3(mongoU); setApiUrl4(deleteU); setApiUrl5(openingU);
-    GetCreateCashBank(openingU);
 
     // Helper to get store footer totals with RBL support and refund bank/UPI prevention
     async function getStoreFooterTotals(locCode, fromDate, toDate) {
@@ -377,50 +378,68 @@ const Datewisedaybook = () => {
 
     if (selectedStore === "all") {
       const tempSummary = [];
-      let totalCash = 0, totalRbl = 0, totalBank = 0, totalUpi = 0; // ✅ Added totalRbl
-      for (const store of AllLoation) {
+      let totalCash = 0, totalRbl = 0, totalBank = 0, totalUpi = 0;
+      
+      // ✅ Fetch all stores in parallel instead of sequentially
+      const storePromises = AllLoation.map(async (store) => {
         const { locCode, locName } = store;
         const summary = await getStoreFooterTotals(locCode, fromDate, toDate);
-        tempSummary.push({
+        return {
           store: locName,
           locCode,
           cash: summary.cash,
-          rbl: summary.rbl, // ✅ Added RBL
+          rbl: summary.rbl,
           bank: summary.bank,
           upi: summary.upi,
           amount: summary.amount,
-        });
+        };
+      });
+      
+      const results = await Promise.all(storePromises);
+      
+      results.forEach(summary => {
+        tempSummary.push(summary);
         totalCash += summary.cash;
-        totalRbl += summary.rbl; // ✅ Added RBL accumulation
+        totalRbl += summary.rbl;
         totalBank += summary.bank;
         totalUpi += summary.upi;
-      }
-      const totalAmount = totalCash + totalRbl + totalBank + totalUpi; // ✅ Added rbl
+      });
+      
+      const totalAmount = totalCash + totalRbl + totalBank + totalUpi;
       setAllStoresSummary(tempSummary);
-      setAllStoresTotals({ cash: totalCash, rbl: totalRbl, bank: totalBank, upi: totalUpi, amount: totalAmount }); // ✅ Added rbl
+      setAllStoresTotals({ cash: totalCash, rbl: totalRbl, bank: totalBank, upi: totalUpi, amount: totalAmount });
       setIsFetching(false);
       return;
     }
+    
+    // ✅ Fetch opening balance in parallel with other data
+    GetCreateCashBank(openingU);
 
     try {
-      console.log('[handleFetch] Fetching URLs:', { bookingU, rentoutU, returnU, deleteU, mongoU, openingU });
-      const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes] = await Promise.all([
-        fetch(bookingU), fetch(rentoutU), fetch(returnU), fetch(deleteU), fetch(mongoU)
+      // ✅ Fetch all data in parallel including overrides
+      const [bookingRes, rentoutRes, returnRes, deleteRes, mongoRes, overrideRes] = await Promise.all([
+        fetch(bookingU),
+        fetch(rentoutU),
+        fetch(returnU),
+        fetch(deleteU),
+        fetch(mongoU),
+        fetch(`${baseUrl.baseUrl}api/tws/getEditedTransactions?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`).catch(() => ({ ok: false }))
       ]);
-      console.log('[handleFetch] bookingRes:', bookingRes);
-      console.log('[handleFetch] rentoutRes:', rentoutRes);
-      console.log('[handleFetch] returnRes:', returnRes);
-      console.log('[handleFetch] deleteRes:', deleteRes);
-      console.log('[handleFetch] mongoRes:', mongoRes);
+      
       if (!mongoRes.ok) {
         const errorText = await mongoRes.text();
-        console.error('[handleFetch] mongoRes not ok:', mongoRes.status, errorText);
+        console.error('mongoRes failed:', mongoRes.status, errorText);
         throw new Error(`mongoRes failed: ${mongoRes.status} ${errorText}`);
       }
-      const [bookingData, rentoutData, returnData, deleteData, mongoData] = await Promise.all([
-        bookingRes.json(), rentoutRes.json(), returnRes.json(), deleteRes.json(), mongoRes.json()
+      
+      const [bookingData, rentoutData, returnData, deleteData, mongoData, overrideData] = await Promise.all([
+        bookingRes.json(),
+        rentoutRes.json(),
+        returnRes.json(),
+        deleteRes.json(),
+        mongoRes.json(),
+        overrideRes.ok ? overrideRes.json() : Promise.resolve({ data: [] })
       ]);
-      console.log('[handleFetch] mongoData:', mongoData);
 
       const bookingList = (bookingData?.dataSet?.data || []).map(item => ({
         ...item,
@@ -555,16 +574,8 @@ const Datewisedaybook = () => {
         };
       });
 
-      let overrideRows = [];
-      try {
-        const res = await fetch(
-          `${baseUrl.baseUrl}api/tws/getEditedTransactions?fromDate=${fromDate}&toDate=${toDate}&locCode=${currentusers.locCode}`
-        );
-        const json = await res.json();
-        overrideRows = json?.data || [];
-      } catch (err) {
-        console.warn("⚠️ Override fetch failed:", err.message);
-      }
+      // ✅ Already fetched in parallel above
+      const overrideRows = overrideData?.data || [];
 
       const editedMap = new Map();
       overrideRows.forEach(row => {
@@ -634,8 +645,7 @@ const Datewisedaybook = () => {
       setMergedTransactions(deduped);
       setMongoTransactions(mongoList);
     } catch (err) {
-      console.error("❌ Error fetching transactions", err);
-      console.error('[handleFetch] Error details:', err && err.stack ? err.stack : err);
+      console.error("Error fetching transactions:", err);
     } finally {
       setIsFetching(false);
     }
@@ -655,7 +665,6 @@ const Datewisedaybook = () => {
       }
 
       const data = await response.json();
-      console.log("Data saved successfully:", data);
       setPreOpen(data?.data)
     } catch (error) {
       console.error("Error saving data:", error);
@@ -709,7 +718,6 @@ const Datewisedaybook = () => {
 
   useEffect(() => {
     if (apiUrl3) {
-      console.log('[useEffect] Fetching apiUrl3:', apiUrl3);
       fetch(apiUrl3)
         .then(res => {
           if (!res.ok) {
@@ -718,7 +726,6 @@ const Datewisedaybook = () => {
           return res.json();
         })
         .then(res => {
-          console.log('[useEffect] apiUrl3 response:', res);
           setMongoTransactions(res.data || []);
         })
         .catch(err => {
@@ -879,7 +886,6 @@ const Datewisedaybook = () => {
   });
 
   const allTransactions = [...bookingTransactions, ...rentOutTransactions, ...returnOutTransactions, ...canCelTransactions, ...Transactionsall];
-  console.log(data4);
 
   const [selectedCategory, setSelectedCategory] = useState(categories[0]);
   const [selectedSubCategory, setSelectedSubCategory] = useState(subCategories[0]);
@@ -907,22 +913,25 @@ const Datewisedaybook = () => {
 
   const toNumber = (v) => (isNaN(+v) ? 0 : +v);
 
-  const displayedRows = mergedTransactions.filter((t) => {
-    const category = (t.Category ?? t.type ?? "").toLowerCase();
-    const subCategory = (t.SubCategory ?? "").toLowerCase();
-    const subCategory1 = (t.SubCategory1 ?? "").toLowerCase();
-    const isRentOut = category === "rentout";
+  // ✅ Memoize filtered rows to avoid recalculating on every render
+  const displayedRows = useMemo(() => {
+    return mergedTransactions.filter((t) => {
+      const category = (t.Category ?? t.type ?? "").toLowerCase();
+      const subCategory = (t.SubCategory ?? "").toLowerCase();
+      const subCategory1 = (t.SubCategory1 ?? "").toLowerCase();
+      const isRentOut = category === "rentout";
 
-    const matchesCategory =
-      selectedCategoryValue === "all" || category === selectedCategoryValue;
+      const matchesCategory =
+        selectedCategoryValue === "all" || category === selectedCategoryValue;
 
-    const matchesSubCategory =
-      selectedSubCategoryValue === "all" ||
-      subCategory === selectedSubCategoryValue ||
-      (isRentOut && subCategory1 === selectedSubCategoryValue);
+      const matchesSubCategory =
+        selectedSubCategoryValue === "all" ||
+        subCategory === selectedSubCategoryValue ||
+        (isRentOut && subCategory1 === selectedSubCategoryValue);
 
-    return matchesCategory && matchesSubCategory;
-  });
+      return matchesCategory && matchesSubCategory;
+    });
+  }, [mergedTransactions, selectedCategoryValue, selectedSubCategoryValue]);
 
   const openingCash = toNumber(
     preOpen?.Closecash ??
@@ -932,19 +941,21 @@ const Datewisedaybook = () => {
 
   const openingRbl = toNumber(preOpen?.rbl ?? 0); // ✅ Added opening RBL
 
-  // ✅ Updated totals calculation with RBL
-  const totals = displayedRows.reduce(
-    (acc, r) => ({
-      cash: acc.cash + toNumber(r.cash),
-      rbl: acc.rbl + toNumber(r.rbl), // ✅ Added RBL calculation
-      bank: acc.bank + toNumber(r.bank),
-      upi: acc.upi + toNumber(r.upi),
-    }),
-    { cash: openingCash, rbl: openingRbl, bank: 0, upi: 0 } // ✅ Added rbl with opening
-  );
+  // ✅ Memoize totals calculation
+  const totals = useMemo(() => {
+    return displayedRows.reduce(
+      (acc, r) => ({
+        cash: acc.cash + toNumber(r.cash),
+        rbl: acc.rbl + toNumber(r.rbl),
+        bank: acc.bank + toNumber(r.bank),
+        upi: acc.upi + toNumber(r.upi),
+      }),
+      { cash: openingCash, rbl: openingRbl, bank: 0, upi: 0 }
+    );
+  }, [displayedRows, openingCash, openingRbl]);
 
   const totalCash = totals.cash;
-  const totalRblAmount = totals.rbl; // ✅ Added RBL total
+  const totalRblAmount = totals.rbl;
   const totalBankAmount = totals.bank;
   const totalUpiAmount = totals.upi;
 
@@ -955,39 +966,31 @@ const Datewisedaybook = () => {
     return isNaN(n) ? 0 : n;
   };
 
-  // ✅ Updated export data with RBL
-  const exportData = [
-    {
-      date: "OPENING BALANCE",
-      invoiceNo: "",
-      customerName: "",
-      quantity: "",
-      Category: "",
-      SubCategory: "",
-      SubCategory1: "",
-      amount: openingCash + openingRbl,
-      totalTransaction: openingCash + openingRbl,
-      securityAmount: "",
-      Balance: "",
-      remark: "",
-      billValue: "",
-      cash: openingCash,
-      rbl: openingRbl, // ✅ Added RBL to export
-      bank: 0,
-      upi: 0,
-      attachment: "",
-    },
+  // ✅ Memoize export data
+  const exportData = useMemo(() => {
+    return [
+      {
+        date: "OPENING BALANCE",
+        invoiceNo: "",
+        customerName: "",
+        quantity: "",
+        Category: "",
+        SubCategory: "",
+        SubCategory1: "",
+        amount: openingCash + openingRbl,
+        totalTransaction: openingCash + openingRbl,
+        securityAmount: "",
+        Balance: "",
+        remark: "",
+        billValue: "",
+        cash: openingCash,
+        rbl: openingRbl,
+        bank: 0,
+        upi: 0,
+        attachment: "",
+      },
 
-    ...(mergedTransactions.length ? mergedTransactions : filteredTransactions)
-      .filter(
-        (t) =>
-          (selectedCategoryValue === "all" ||
-            (t.Category ?? t.type ?? "").toLowerCase() === selectedCategoryValue) &&
-          (selectedSubCategoryValue === "all" ||
-            (t.SubCategory ?? "").toLowerCase() === selectedSubCategoryValue ||
-            (t.SubCategory1 ?? "").toLowerCase() === selectedSubCategoryValue)
-      )
-      .map((t) => {
+      ...displayedRows.map((t) => {
         const isReturn = t.Category === "Return";
         const isCancel = t.Category === "Cancel";
         const isRent = t.Category === "RentOut";
@@ -1030,12 +1033,12 @@ const Datewisedaybook = () => {
           attachment: t.attachment ? "Yes" : "No",
         };
       }),
-  ];
+    ];
+  }, [displayedRows, openingCash, openingRbl, selectedCategoryValue, selectedSubCategoryValue]);
 
   const [editingIndex, setEditingIndex] = useState(null);
   const [editedTransaction, setEditedTransaction] = useState({});
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isFetching, setIsFetching] = useState(false);
 
   const handleEditClick = async (transaction, index) => {
     setIsSyncing(true);
