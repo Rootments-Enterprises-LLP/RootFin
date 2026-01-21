@@ -1,5 +1,107 @@
 // backend/controllers/DayBookController.js
 import Transaction from "../model/Transaction.js";
+import mongoose from "mongoose";
+
+// ✅ Optimized Close Report - Fetch all stores in one call
+export const getCloseReportOptimized = async (req, res) => {
+  try {
+    const { date, role } = req.query;
+
+    if (!date) {
+      return res.status(400).json({
+        message: "Date is required"
+      });
+    }
+
+    // Parse dates
+    const targetDate = new Date(date);
+    const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+    const endOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 1);
+
+    // Get previous day for opening balance
+    const prevDate = new Date(targetDate);
+    prevDate.setDate(prevDate.getDate() - 1);
+    const prevDayStart = new Date(prevDate.getFullYear(), prevDate.getMonth(), prevDate.getDate());
+    const prevDayEnd = new Date(prevDate.getFullYear(), prevDate.getMonth(), prevDate.getDate() + 1);
+
+    console.log(`📊 Optimized Close Report: Fetching data for ${date}`);
+
+    // ✅ Fetch ALL data in parallel using MongoDB aggregation
+    const [currentDayData, previousDayData] = await Promise.all([
+      // Current day closing data
+      mongoose.connection.db.collection('savecashbanks').find({
+        date: { $gte: startOfDay, $lt: endOfDay }
+      }).toArray(),
+      
+      // Previous day closing data (for opening balance)
+      mongoose.connection.db.collection('savecashbanks').find({
+        date: { $gte: prevDayStart, $lt: prevDayEnd }
+      }).toArray()
+    ]);
+
+    console.log(`✅ Found ${currentDayData.length} stores with closing data`);
+    console.log(`✅ Found ${previousDayData.length} stores with opening data`);
+
+    // Create a map of opening balances for quick lookup
+    const openingBalanceMap = {};
+    previousDayData.forEach(item => {
+      openingBalanceMap[item.locCode] = {
+        cash: Number(item.Closecash ?? item.cash ?? 0),
+        rbl: Number(item.rbl ?? 0),
+        bank: Number(item.bank ?? 0),
+        upi: Number(item.upi ?? 0)
+      };
+    });
+
+    // Process current day data with opening balances
+    const processedData = currentDayData.map(transaction => {
+      const openingCash = openingBalanceMap[transaction.locCode]?.cash || 0;
+      const openingRbl = openingBalanceMap[transaction.locCode]?.rbl || 0;
+      
+      const totalCash = Number(transaction.cash || 0) + openingCash;
+      const totalRbl = Number(transaction.rbl || 0) + openingRbl;
+      
+      const match = transaction.Closecash === totalCash ? 'Match' : 'Mismatch';
+      
+      const bankAmount = parseInt(transaction.bank || 0);
+      const upiAmount = parseInt(transaction.upi || 0);
+      const bankPlusUpi = bankAmount + upiAmount;
+      
+      return {
+        _id: transaction._id,
+        locCode: transaction.locCode,
+        date: transaction.date,
+        cash: totalCash,
+        rbl: totalRbl,
+        bank: transaction.bank || 0,
+        upi: transaction.upi || 0,
+        Closecash: transaction.Closecash || 0,
+        totalAmount: transaction.totalAmount || 0,
+        openingCash,
+        openingRbl,
+        match,
+        bankPlusUpi,
+        email: transaction.email || '',
+        createdAt: transaction.createdAt,
+        updatedAt: transaction.updatedAt
+      };
+    });
+
+    console.log(`✅ Processed ${processedData.length} records`);
+
+    res.status(200).json({
+      success: true,
+      data: processedData
+    });
+
+  } catch (error) {
+    console.error("❌ Optimized Close Report error:", error);
+    res.status(500).json({
+      message: "Server error",
+      error: error.message
+    });
+  }
+};
 
 // Get Day Book - All transactions for a specific date and location
 export const getDayBook = async (req, res) => {

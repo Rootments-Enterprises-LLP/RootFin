@@ -1,8 +1,16 @@
 // backend/route/DayBookRoutes.js
 import express from "express";
-import { getDayBook, getDayBookRange } from "../controllers/DayBookController.js";
+import { getDayBook, getDayBookRange, getCloseReportOptimized } from "../controllers/DayBookController.js";
 
 const router = express.Router();
+
+/**
+ * @swagger
+ * /api/close-report/optimized:
+ *   get:
+ *     summary: Get optimized Close Report (all stores in one call)
+ */
+router.get("/close-report/optimized", getCloseReportOptimized);
 
 /**
  * @swagger
