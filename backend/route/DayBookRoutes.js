@@ -1,8 +1,37 @@
 // backend/route/DayBookRoutes.js
 import express from "express";
-import { getDayBook, getDayBookRange } from "../controllers/DayBookController.js";
+import { getDayBook, getDayBookRange, getCloseReportOptimized } from "../controllers/DayBookController.js";
 
 const router = express.Router();
+
+/**
+ * @swagger
+ * /api/close-report/optimized:
+ *   get:
+ *     summary: Get optimized Close Report (all stores in one call)
+ *     description: Retrieves closing data for all stores with opening balances in a single optimized query
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Date in YYYY-MM-DD format
+ *       - in: query
+ *         name: role
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: User role
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved close report data
+ *       400:
+ *         description: Missing required parameters
+ *       500:
+ *         description: Server error
+ */
+router.get("/close-report/optimized", getCloseReportOptimized);
 
 /**
  * @swagger

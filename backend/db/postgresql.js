@@ -5,17 +5,26 @@ import fs from 'fs';
 // 🔁 Load correct .env file based on env
 const env = process.env.NODE_ENV || 'development';
 const envFile = `.env.${env}`;
+
+// Try environment-specific file first, then fall back to .env
 if (fs.existsSync(envFile)) {
+  console.log(`📄 Loading ${envFile}`);
   dotenv.config({ path: envFile });
+} else if (fs.existsSync('.env')) {
+  console.log('📄 Loading .env');
+  dotenv.config({ path: '.env' });
+} else {
+  console.log('⚠️  No .env file found');
 }
 
 // Get PostgreSQL connection details from environment variables
 const getPostgresConfig = () => {
   if (env === 'production') {
+    // ✅ In production, prefer individual credentials if set, otherwise will use DATABASE_URL
     return {
       database: process.env.POSTGRES_DB_PROD || process.env.POSTGRES_DB,
       username: process.env.POSTGRES_USER_PROD || process.env.POSTGRES_USER,
-      password: process.env.POSTGRES_PASSWORD_PROD || process.env.POSTGRES_PASSWORD,
+      password: process.env.POSTGRES_PASSWORD_PROD ? String(process.env.POSTGRES_PASSWORD_PROD) : (process.env.POSTGRES_PASSWORD ? String(process.env.POSTGRES_PASSWORD) : undefined),
       host: process.env.POSTGRES_HOST_PROD || process.env.POSTGRES_HOST || 'localhost',
       port: process.env.POSTGRES_PORT_PROD || process.env.POSTGRES_PORT || 5432,
       dialect: 'postgres',
@@ -26,7 +35,7 @@ const getPostgresConfig = () => {
     return {
       database: process.env.POSTGRES_DB_DEV || process.env.POSTGRES_DB || 'rootfin_dev',
       username: process.env.POSTGRES_USER_DEV || process.env.POSTGRES_USER || 'postgres',
-      password: process.env.POSTGRES_PASSWORD_DEV || process.env.POSTGRES_PASSWORD || 'postgres',
+      password: process.env.POSTGRES_PASSWORD_DEV ? String(process.env.POSTGRES_PASSWORD_DEV) : (process.env.POSTGRES_PASSWORD ? String(process.env.POSTGRES_PASSWORD) : 'postgres'),
       host: process.env.POSTGRES_HOST_DEV || process.env.POSTGRES_HOST || 'localhost',
       port: process.env.POSTGRES_PORT_DEV || process.env.POSTGRES_PORT || 5432,
       dialect: 'postgres',
@@ -45,9 +54,13 @@ const getPostgresConfig = () => {
 // Alternative: Use connection URI if provided
 const getConnectionUri = () => {
   if (env === 'production') {
-    return process.env.POSTGRES_URI_PROD || process.env.DATABASE_URL;
+    const uri = process.env.POSTGRES_URI_PROD || process.env.DATABASE_URL;
+    console.log('🔍 Production URI check:', uri ? 'Found' : 'Not found');
+    return uri;
   } else {
-    return process.env.POSTGRES_URI_DEV || process.env.DATABASE_URL;
+    const uri = process.env.POSTGRES_URI_DEV || process.env.DATABASE_URL;
+    console.log('🔍 Development URI check:', uri ? 'Found' : 'Not found');
+    return uri;
   }
 };
 
@@ -59,6 +72,7 @@ const initializePostgres = () => {
   
   if (connectionUri) {
     // Use connection URI (common for cloud providers like Heroku, Render, etc.)
+    console.log('📊 Using PostgreSQL connection URI');
     sequelize = new Sequelize(connectionUri, {
       dialect: 'postgres',
       logging: process.env.POSTGRES_LOGGING === 'true' ? console.log : false,
@@ -77,7 +91,15 @@ const initializePostgres = () => {
     });
   } else {
     // Use individual connection parameters
+    console.log('📊 Using PostgreSQL individual credentials');
     const config = getPostgresConfig();
+    
+    // ✅ Skip if no password is set
+    if (!config.password) {
+      console.log('⚠️  No PostgreSQL password configured, skipping PostgreSQL connection');
+      return null;
+    }
+    
     sequelize = new Sequelize(
       config.database,
       config.username,

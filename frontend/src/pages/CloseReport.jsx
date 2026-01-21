@@ -31,6 +31,7 @@ const CloseReport = () => {
   const [fromDate, setFromDate] = useState("");
   const [data, setData] = useState([]);
   const [filter, setFilter] = useState("All");
+  const [isLoading, setIsLoading] = useState(false); // ✅ Add loading state
   const printRef = useRef(null);
 
   const currentuser = JSON.parse(localStorage.getItem("rootfinuser"));
@@ -42,68 +43,60 @@ const CloseReport = () => {
 
   const handleFetch = async () => {
     if (!fromDate) return alert("Please select a date first.");
+    if (isLoading) return; // ✅ Prevent multiple simultaneous fetches
+
+    setIsLoading(true); // ✅ Start loading
 
     const formattedDate = formatDate(fromDate);
-    const updatedApiUrl = `${baseUrl?.baseUrl}user/AdminColseView?date=${formattedDate}&role=${currentuser?.power}`;
+    
+    // ✅ Use optimized endpoint that fetches ALL stores in ONE call
+    const optimizedApiUrl = `${baseUrl?.baseUrl}api/close-report/optimized?date=${formattedDate}&role=${currentuser?.power}`;
 
     try {
-      const response = await fetch(updatedApiUrl);
+      console.log('🚀 Fetching optimized close report...');
+      const startTime = Date.now();
+      
+      const response = await fetch(optimizedApiUrl);
+      
       if (response.status === 401) {
-        return alert("Error: Data already saved for today.");
+        alert("Error: Data already saved for today.");
+        setIsLoading(false);
+        return;
       } else if (!response.ok) {
-        return alert("Error: Failed to fetch data.");
+        alert("Error: Failed to fetch data.");
+        setIsLoading(false);
+        return;
       }
 
       const result = await response.json();
-      
-      // Fetch opening balance for each store
-      const prevDate = new Date(fromDate);
-      prevDate.setDate(prevDate.getDate() - 1);
-      const prevDayStr = prevDate < new Date("2025-01-01")
-        ? "2025-01-01"
-        : prevDate.toISOString().split("T")[0];
+      const endTime = Date.now();
+      console.log(`✅ Optimized fetch completed in ${endTime - startTime}ms`);
+      console.log('📊 Result data:', result);
 
-      const mappedData = await Promise.all((result?.data || []).map(async (transaction) => {
+      // Map store names
+      const mappedData = (result?.data || []).map(transaction => {
         const foundLoc = AllLoation.find(item => item.locCode === transaction.locCode);
         const storeName = foundLoc ? foundLoc.locName : "Unknown";
         
-        // Fetch opening balance for this store
-        let openingCash = 0;
-        try {
-          const openingRes = await fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${transaction.locCode}&date=${prevDayStr}`);
-          if (openingRes.ok) {
-            const openingData = await openingRes.json();
-            openingCash = Number(openingData?.data?.Closecash ?? openingData?.data?.cash ?? 0);
-          }
-        } catch (err) {
-          console.warn(`Failed to fetch opening balance for ${transaction.locCode}:`, err);
-        }
-
-        // Add opening cash to transaction cash
-        const totalCash = Number(transaction.cash || 0) + openingCash;
-        
-        // Compare total cash with close cash
-        const match = transaction.Closecash === totalCash ? 'Match' : 'Mismatch';
-        
-        // Calculate Bank + UPI (excluding RBL) to match DayBookInc logic
-        const bankAmount = parseInt(transaction.bank || 0);
-        const upiAmount = parseInt(transaction.upi || 0);
-        const bankPlusUpi = bankAmount + upiAmount;
-        
-        return { 
+        return {
           ...transaction,
-          cash: totalCash, // Override with total cash (opening + day's transactions)
-          openingCash, // Store opening cash for reference
-          match, 
           storeName,
-          bankPlusUpi // New field for Bank + UPI
+          date: transaction.date || fromDate
         };
-      }));
+      });
 
-      setData({ ...result, data: mappedData });
+      console.log('📊 Mapped data:', mappedData);
+      
+      if (mappedData.length === 0) {
+        alert('No closing data found for this date. Please ensure stores have closed their day for the selected date.');
+      }
+      
+      setData({ success: true, data: mappedData });
     } catch (error) {
       console.error("Error fetching data:", error);
       alert("An unexpected error occurred.");
+    } finally {
+      setIsLoading(false); // ✅ Stop loading
     }
   };
 
@@ -157,11 +150,24 @@ const CloseReport = () => {
             </div>
 
             <button
-              disabled={!fromDate}
-              className={`w-[400px] h-[40px] mt-[20px] rounded-md text-white ${fromDate ? 'bg-blue-500' : 'bg-blue-300 cursor-not-allowed'}`}
+              disabled={!fromDate || isLoading}
+              className={`w-[400px] h-[40px] mt-[20px] rounded-md text-white transition-all ${
+                isLoading 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : fromDate 
+                    ? 'bg-blue-500 hover:bg-blue-600 active:scale-95' 
+                    : 'bg-blue-300 cursor-not-allowed'
+              }`}
               onClick={handleFetch}
             >
-              Fetch
+              {isLoading ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Loading...</span>
+                </div>
+              ) : (
+                'Fetch'
+              )}
             </button>
           </div>
 
