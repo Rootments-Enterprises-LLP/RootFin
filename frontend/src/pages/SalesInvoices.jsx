@@ -15,6 +15,11 @@ const SalesInvoices = () => {
   const [invoiceToDelete, setInvoiceToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  
+  // Date range filtering states
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [showDateFilter, setShowDateFilter] = useState(false);
 
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
 
@@ -225,6 +230,10 @@ const SalesInvoices = () => {
           params.append("filterLocCode", user.locCode);
         }
 
+        // Add date range filtering if specified
+        if (fromDate) params.append("fromDate", fromDate);
+        if (toDate) params.append("toDate", toDate);
+
         const response = await fetch(`${API_URL}/api/sales/invoices?${params.toString()}`);
 
         if (!response.ok) {
@@ -242,7 +251,7 @@ const SalesInvoices = () => {
     };
 
     fetchInvoices();
-  }, [API_URL]);
+  }, [API_URL, fromDate, toDate]);
 
   // Filter invoices based on search term AND exclude Return/Refund/Cancel categories
   const filteredInvoices = invoices.filter(invoice => {
@@ -288,6 +297,21 @@ const SalesInvoices = () => {
               <div className="space-y-1">
                 <h1 className="text-2xl font-semibold text-[#111827]">All Invoices</h1>
                 <p className="text-sm text-[#6b7280]">Review your invoicing activity and keep tabs on payments.</p>
+                <div className="flex items-center gap-4 mt-2">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-[#e0f2fe] px-3 py-1 text-sm font-medium text-[#0369a1]">
+                    📊 Total: {filteredInvoices.length} invoices
+                  </span>
+                  {(fromDate || toDate) && (
+                    <span className="inline-flex items-center gap-2 rounded-full bg-[#f0f9ff] px-3 py-1 text-sm font-medium text-[#1e40af]">
+                      📅 Filtered by date
+                    </span>
+                  )}
+                  {searchTerm && (
+                    <span className="inline-flex items-center gap-2 rounded-full bg-[#fef3c7] px-3 py-1 text-sm font-medium text-[#92400e]">
+                      🔍 Search: "{searchTerm}"
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-2">
               <Link
@@ -338,7 +362,53 @@ const SalesInvoices = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="flex-1 rounded-lg border border-[#d7def4] bg-white px-4 py-2.5 text-sm text-[#111827] placeholder:text-[#9ca3af] focus:border-[#3366ff] focus:outline-none focus:ring-2 focus:ring-[#3366ff]/20"
               />
+              
+              {/* Date Filter Toggle Button */}
+              <button
+                onClick={() => setShowDateFilter(!showDateFilter)}
+                className={`rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                  showDateFilter || fromDate || toDate
+                    ? 'border-[#3366ff] bg-[#3366ff] text-white'
+                    : 'border-[#d7def4] bg-white text-[#6b7280] hover:bg-[#f9fafb]'
+                }`}
+                title="Filter by date range"
+              >
+                📅 Date Filter
+              </button>
             </div>
+            
+            {/* Date Range Filter */}
+            {showDateFilter && (
+              <div className="mt-4 flex items-center gap-4 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] p-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-[#374151]">From:</label>
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="rounded-md border border-[#d1d5db] px-3 py-2 text-sm focus:border-[#3366ff] focus:outline-none focus:ring-1 focus:ring-[#3366ff]"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-[#374151]">To:</label>
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="rounded-md border border-[#d1d5db] px-3 py-2 text-sm focus:border-[#3366ff] focus:outline-none focus:ring-1 focus:ring-[#3366ff]"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    setFromDate("");
+                    setToDate("");
+                  }}
+                  className="rounded-md bg-[#6b7280] px-3 py-2 text-sm font-medium text-white hover:bg-[#4b5563] transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
           </header>
 
           <section className="rounded-3xl border border-[#dfe5f5] bg-white shadow-sm">
@@ -377,6 +447,7 @@ const SalesInvoices = () => {
                 <table className="min-w-full border-collapse">
                   <thead>
                     <tr className="border-b border-[#eef1fb] bg-[#f9fbff] text-xs font-semibold uppercase tracking-[0.24em] text-[#8a94b0]">
+                      <th className="w-12 px-4 py-4 text-center">#</th>
                       <th className="w-12 px-4 py-4">
                         <input
                           type="checkbox"
@@ -392,7 +463,6 @@ const SalesInvoices = () => {
                       <th className="px-4 py-4 text-right">INVOICE AMOUNT</th>
                       <th className="px-4 py-4 text-right">BALANCE</th>
                       <th className="px-4 py-4 text-left">BRANCH</th>
-                      {isAdmin && <th className="px-4 py-4 text-center">ACTIONS</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#eef1fb] text-sm text-[#1f2937]">
@@ -401,6 +471,9 @@ const SalesInvoices = () => {
                         key={invoice._id || invoice.id}
                         className={`${index % 2 === 0 ? "bg-white" : "bg-[#f7f9ff]"} hover:bg-[#f2f5ff]`}
                       >
+                        <td className="px-4 py-4 text-center text-sm font-medium text-[#6b7280]">
+                          {index + 1}
+                        </td>
                         <td className="px-4 py-4">
                           <input
                             type="checkbox"
@@ -435,64 +508,34 @@ const SalesInvoices = () => {
                           ₹0.00
                         </td>
                         <td className="px-4 py-4 text-[#4b5563]">{invoice.branch}</td>
-                        {isAdmin && (
-                          <td className="px-4 py-4 text-center">
-                            <button
-                              onClick={() => {
-                                setInvoiceToDelete(invoice);
-                                setShowDeleteModal(true);
-                              }}
-                              className="inline-flex items-center gap-2 rounded-md border border-[#fecaca] bg-[#fee2e2] px-3 py-1.5 text-sm font-medium text-[#991b1b] hover:bg-[#fecaca] transition-colors"
-                              title="Delete Invoice"
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        )}
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                
+                {/* Table Footer Summary */}
+                <div className="border-t border-[#eef1fb] bg-[#f9fbff] px-6 py-4">
+                  <div className="flex items-center justify-between text-sm text-[#6b7280]">
+                    <div className="flex items-center gap-4">
+                      <span>Showing {filteredInvoices.length} invoice{filteredInvoices.length !== 1 ? 's' : ''}</span>
+                      {(fromDate || toDate || searchTerm) && (
+                        <span className="text-[#4b5563]">
+                          • Filtered from {invoices.length} total
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span>
+                        Total Amount: ₹{filteredInvoices.reduce((sum, inv) => sum + (parseFloat(inv.finalTotal) || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </section>
         </div>
       </div>
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && invoiceToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="relative w-full max-w-md rounded-2xl border border-[#d7dcf5] bg-white shadow-xl">
-            <div className="px-6 py-4 border-b border-[#e7ebf8]">
-              <h2 className="text-lg font-semibold text-[#1f2937]">Delete Invoice</h2>
-            </div>
-            <div className="px-6 py-4">
-              <p className="text-sm text-[#64748b]">
-                Are you sure you want to delete invoice <strong>{invoiceToDelete.invoiceNumber}</strong>? This action cannot be undone.
-              </p>
-            </div>
-            <div className="px-6 py-4 border-t border-[#e7ebf8] flex items-center justify-end gap-3">
-              <button
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setInvoiceToDelete(null);
-                }}
-                disabled={deleting}
-                className="rounded-md border border-[#d7dcf5] bg-white px-4 py-2 text-sm font-medium text-[#475569] transition hover:bg-[#f1f5f9] disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteInvoice}
-                disabled={deleting}
-                className="rounded-md bg-[#ef4444] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#dc2626] disabled:opacity-50"
-              >
-                {deleting ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
     </>
   );

@@ -323,7 +323,11 @@ const ShoeSalesItemGroupDetail = () => {
       if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
         item.warehouseStocks.forEach(ws => {
           if (ws.warehouse) {
-            warehousesWithStock.add(ws.warehouse);
+            // Filter out corrupted warehouse names
+            const warehouseName = ws.warehouse.toString().trim();
+            if (warehouseName !== "arehouse Branch" && warehouseName !== "arehouse") {
+              warehousesWithStock.add(ws.warehouse);
+            }
           }
         });
       }
@@ -346,6 +350,25 @@ const ShoeSalesItemGroupDetail = () => {
     // Process each item
     items.forEach(item => {
       const itemName = item.name || "Unnamed Item";
+      // For group items, create a SKU from the item name or use existing SKU
+      let itemSku = "N/A";
+      
+      if (item.sku) {
+        itemSku = item.sku;
+      } else if (item.itemSku) {
+        itemSku = item.itemSku;
+      } else if (item.code) {
+        itemSku = item.code;
+      } else if (itemName && itemName.includes(' - ')) {
+        // Extract SKU-like info from name: "Aurora test - green/30" -> "green/30"
+        const parts = itemName.split(' - ');
+        if (parts.length > 1) {
+          itemSku = parts[parts.length - 1]; // Get the last part (color/size)
+        }
+      } else if (item.attributeCombination && Array.isArray(item.attributeCombination)) {
+        itemSku = item.attributeCombination.join('-');
+      }
+      
       const itemId = item._id || item.id;
       const itemWarehouseStocks = item.warehouseStocks || [];
       const itemSellingPrice = parseFloat(item.sellingPrice) || 0;
@@ -355,7 +378,13 @@ const ShoeSalesItemGroupDetail = () => {
       let totalOpeningStockValue = 0;
       
       // Create warehouse entries for this item
-      const warehouseEntries = sortedWarehouses.map(warehouse => {
+      const warehouseEntries = sortedWarehouses
+        .filter(warehouse => {
+          // Filter out corrupted warehouse names
+          const warehouseName = warehouse.toString().trim();
+          return warehouseName !== "arehouse Branch" && warehouseName !== "arehouse";
+        })
+        .map(warehouse => {
         const ws = itemWarehouseStocks.find(ws => 
           ws.warehouse && ws.warehouse.toString().trim() === warehouse.toString().trim()
         );
@@ -424,6 +453,7 @@ const ShoeSalesItemGroupDetail = () => {
       // Add total row
       distribution.push({
         itemName,
+        itemSku,
         itemId,
         isTotal: false,
         warehouse: null,
@@ -752,10 +782,20 @@ const ShoeSalesItemGroupDetail = () => {
                       </thead>
                       <tbody className="divide-y divide-[#f1f5f9] bg-white">
                         {items.map((item, idx) => {
-                          // Get stock from item, or default to 0
-                          const itemStock = typeof item.stock === 'number' 
-                            ? Math.round(item.stock) 
-                            : (Math.round(parseFloat(item.stock)) || 0);
+                          // Calculate total stock from all warehouses
+                          let itemStock = 0;
+                          
+                          if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
+                            itemStock = item.warehouseStocks.reduce((total, ws) => {
+                              const stockOnHand = parseFloat(ws.stockOnHand) || 0;
+                              return total + stockOnHand;
+                            }, 0);
+                          } else if (typeof item.stock === 'number') {
+                            // Fallback to direct stock property if warehouseStocks not available
+                            itemStock = item.stock;
+                          } else if (item.stock) {
+                            itemStock = parseFloat(item.stock) || 0;
+                          }
                           
                           return (
                             <tr 
@@ -780,7 +820,7 @@ const ShoeSalesItemGroupDetail = () => {
                               <td className="px-6 py-4 text-sm font-medium text-[#1f2937]">
                                 ₹{typeof item.sellingPrice === 'number' ? item.sellingPrice.toFixed(2) : (item.sellingPrice || "0.00")}
                               </td>
-                              <td className="px-6 py-4 text-sm font-bold text-[#1f2937]">{itemStock}</td>
+                              <td className="px-6 py-4 text-sm font-bold text-[#1f2937]">{Math.round(itemStock)}</td>
                               <td className="px-6 py-4 text-sm text-[#64748b]">{item.reorderPoint || "—"}</td>
                               <td className="px-6 py-4">
                                 <Link
@@ -994,7 +1034,10 @@ const ShoeSalesItemGroupDetail = () => {
                         rows.push(
                           <tr key={`${itemData.itemId}-total`} className="bg-blue-50">
                             <td className="px-4 py-3 text-sm font-semibold text-gray-900 border-r border-gray-200">
-                              {itemData.itemName}
+                              <div>
+                                <div className="font-semibold">{itemData.itemName}</div>
+                                <div className="text-xs text-gray-500 mt-0.5">SKU: {itemData.itemSku || "No SKU"}</div>
+                              </div>
                             </td>
                             <td className="px-4 py-3 text-sm font-medium text-gray-700 border-r border-gray-200">
                               Warehouse (total)

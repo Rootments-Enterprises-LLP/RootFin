@@ -31,6 +31,7 @@ const CloseReport = () => {
   const [fromDate, setFromDate] = useState("");
   const [data, setData] = useState([]);
   const [filter, setFilter] = useState("All");
+  const [isLoading, setIsLoading] = useState(false);
   const printRef = useRef(null);
 
   const currentuser = JSON.parse(localStorage.getItem("rootfinuser"));
@@ -43,42 +44,108 @@ const CloseReport = () => {
   const handleFetch = async () => {
     if (!fromDate) return alert("Please select a date first.");
 
+    setIsLoading(true);
     const formattedDate = formatDate(fromDate);
     const updatedApiUrl = `${baseUrl?.baseUrl}user/AdminColseView?date=${formattedDate}&role=${currentuser?.power}`;
 
     try {
+      // ✅ PERFORMANCE OPTIMIZATION: Fetch main data first
       const response = await fetch(updatedApiUrl);
       if (response.status === 401) {
+        setIsLoading(false);
         return alert("Error: Data already saved for today.");
       } else if (!response.ok) {
+        setIsLoading(false);
         return alert("Error: Failed to fetch data.");
       }
 
       const result = await response.json();
       
-      // Fetch opening balance for each store
+      // Calculate previous date for opening balance
       const prevDate = new Date(fromDate);
       prevDate.setDate(prevDate.getDate() - 1);
       const prevDayStr = prevDate < new Date("2025-01-01")
         ? "2025-01-01"
         : prevDate.toISOString().split("T")[0];
 
-      const mappedData = await Promise.all((result?.data || []).map(async (transaction) => {
-        const foundLoc = AllLoation.find(item => item.locCode === transaction.locCode);
-        const storeName = foundLoc ? foundLoc.locName : "Unknown";
-        
-        // Fetch opening balance for this store
-        let openingCash = 0;
+      // ✅ MAXIMUM PARALLELIZATION: Batch ALL opening balance requests simultaneously
+      const openingBalancePromises = (result?.data || []).map(async (transaction) => {
         try {
-          const openingRes = await fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${transaction.locCode}&date=${prevDayStr}`);
+          // Use Promise.race for faster response with timeout
+          const openingRes = await Promise.race([
+            fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${transaction.locCode}&date=${prevDayStr}`),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout')), 5000) // 5 second timeout
+            )
+          ]);
+          
           if (openingRes.ok) {
             const openingData = await openingRes.json();
-            openingCash = Number(openingData?.data?.Closecash ?? openingData?.data?.cash ?? 0);
+            return {
+              locCode: transaction.locCode,
+              openingCash: Number(openingData?.data?.Closecash ?? openingData?.data?.cash ?? 0),
+              status: 'success'
+            };
+          } else if (openingRes.status === 404) {
+            // 404 is expected when no closing data exists for previous date
+            console.log(`📝 No opening balance data for store ${transaction.locCode} on ${prevDayStr} (expected for new stores or first day)`);
+            return {
+              locCode: transaction.locCode,
+              openingCash: 0,
+              status: 'no_data'
+            };
+          } else {
+            console.warn(`⚠️ API error for store ${transaction.locCode}: ${openingRes.status}`);
+            return {
+              locCode: transaction.locCode,
+              openingCash: 0,
+              status: 'error'
+            };
           }
         } catch (err) {
-          console.warn(`Failed to fetch opening balance for ${transaction.locCode}:`, err);
+          if (err.message === 'Timeout') {
+            console.warn(`⏱️ Timeout fetching opening balance for store ${transaction.locCode}`);
+          } else {
+            console.warn(`❌ Network error for store ${transaction.locCode}:`, err.message);
+          }
+          return {
+            locCode: transaction.locCode,
+            openingCash: 0,
+            status: 'timeout_or_error'
+          };
         }
+      });
 
+      // ✅ FAST PARALLEL EXECUTION: All API calls run simultaneously
+      console.log(`🚀 Starting ${openingBalancePromises.length} parallel API calls...`);
+      const startTime = Date.now();
+      
+      const openingBalances = await Promise.allSettled(openingBalancePromises);
+      
+      const endTime = Date.now();
+      console.log(`✅ Completed ${openingBalancePromises.length} API calls in ${endTime - startTime}ms`);
+
+      // Process results (handle both fulfilled and rejected promises)
+      const openingBalanceMap = {};
+      openingBalances.forEach((result, index) => {
+        const transaction = (result?.data || [])[index];
+        if (result.status === 'fulfilled' && result.value) {
+          openingBalanceMap[result.value.locCode] = result.value.openingCash;
+        } else {
+          // Fallback for failed requests
+          const locCode = (result?.data || [])[index]?.locCode;
+          if (locCode) {
+            openingBalanceMap[locCode] = 0;
+          }
+        }
+      });
+
+      // ✅ FAST SYNCHRONOUS PROCESSING: No more async operations in map
+      const mappedData = (result?.data || []).map((transaction) => {
+        const foundLoc = AllLoation.find(item => item.locCode === transaction.locCode);
+        const storeName = foundLoc ? foundLoc.locName : "Unknown";
+        const openingCash = openingBalanceMap[transaction.locCode] || 0;
+        
         // Add opening cash to transaction cash
         const totalCash = Number(transaction.cash || 0) + openingCash;
         
@@ -98,11 +165,13 @@ const CloseReport = () => {
           storeName,
           bankPlusUpi // New field for Bank + UPI
         };
-      }));
+      });
 
       setData({ ...result, data: mappedData });
+      setIsLoading(false);
     } catch (error) {
       console.error("Error fetching data:", error);
+      setIsLoading(false);
       alert("An unexpected error occurred.");
     }
   };
@@ -119,32 +188,27 @@ const CloseReport = () => {
 
 
   const handlePrint = () => {
-    const printContent = printRef.current.innerHTML;
-    const originalContent = document.body.innerHTML;
-    console.log(originalContent);
-
-
-    document.body.innerHTML = `<html><head><title>Booking Report</title>
-      <style>
-        @page { size: tabloid; margin: 10mm; }
-        body { font-family: Arial, sans-serif; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid black; padding: 8px; text-align: left; white-space: nowrap; }
-        tr { break-inside: avoid; }
-      </style>
-    </head><body>${printContent}</body></html>`;
-
     window.print();
-    window.location.reload();
   };
 
   return (
     <div>
+      <style>{`
+        @media print {
+          @page { size: tabloid; margin: 10mm; }
+          body { font-family: Arial, sans-serif; }
+          .no-print { display: none !important; }
+          table { width: 100%; border-collapse: collapse; page-break-inside: avoid; }
+          th, td { border: 1px solid black; padding: 8px; text-align: left; white-space: nowrap; }
+          tr { break-inside: avoid; }
+          .print-title { font-size: 20px; font-weight: bold; margin-bottom: 20px; text-align: center; }
+        }
+      `}</style>
       <Headers title={'Close Report'} />
       <div className='ml-[240px]'>
         <div className="p-6 bg-gray-100 min-h-screen">
           {/* Date Input */}
-          <div className="flex gap-4 mb-6 w-[600px]">
+          <div className="flex gap-4 mb-6 w-[600px] no-print">
             <div className='w-full flex flex-col'>
               <label htmlFor="from">From *</label>
               <input
@@ -157,16 +221,27 @@ const CloseReport = () => {
             </div>
 
             <button
-              disabled={!fromDate}
-              className={`w-[400px] h-[40px] mt-[20px] rounded-md text-white ${fromDate ? 'bg-blue-500' : 'bg-blue-300 cursor-not-allowed'}`}
+              disabled={!fromDate || isLoading}
+              className={`w-[400px] h-[40px] mt-[20px] rounded-md text-white flex items-center justify-center gap-2 ${
+                !fromDate || isLoading 
+                  ? 'bg-blue-300 cursor-not-allowed' 
+                  : 'bg-blue-500 hover:bg-blue-600'
+              }`}
               onClick={handleFetch}
             >
-              Fetch
+              {isLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Loading...
+                </>
+              ) : (
+                'Fetch'
+              )}
             </button>
           </div>
 
           {/* Match Filter Buttons */}
-          <div className="mb-4 flex gap-4">
+          <div className="mb-4 flex gap-4 no-print">
             <button onClick={() => setFilter("All")} className={`px-4 py-2 rounded ${filter === 'All' ? 'bg-blue-600 text-white' : 'bg-gray-300'}`}>All</button>
             <button onClick={() => setFilter("Match")} className={`px-4 py-2 rounded ${filter === 'Match' ? 'bg-green-600 text-white' : 'bg-gray-300'}`}>Match</button>
             <button onClick={() => setFilter("Mismatch")} className={`px-4 py-2 rounded ${filter === 'Mismatch' ? 'bg-red-600 text-white' : 'bg-gray-300'}`}>Mismatch</button>
@@ -174,6 +249,7 @@ const CloseReport = () => {
 
           {/* Table */}
           <div ref={printRef}>
+            <h2 className="print-title" style={{display: 'none'}}>Financial Summary Report - {fromDate}</h2>
             <div className="bg-white p-4 shadow-md rounded-lg">
               <table className="w-full border-collapse border rounded-md border-gray-300">
                 <thead>
@@ -190,7 +266,16 @@ const CloseReport = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTransactions.length > 0 ? (
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan="9" className="text-center border p-8">
+                        <div className="flex items-center justify-center gap-3">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                          <span className="text-gray-600">Loading data...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : filteredTransactions.length > 0 ? (
                     filteredTransactions.map((transaction, index) => (
 
                       <tr key={index}>
@@ -260,7 +345,7 @@ const CloseReport = () => {
           {/* Print Button */}
           <button
             onClick={handlePrint}
-            className="mt-6 w-[200px] float-right bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2"
+            className="mt-6 w-[200px] float-right bg-blue-600 text-white py-2 rounded-lg flex items-center justify-center gap-2 no-print"
           >
             📥 Take PDF
           </button>
