@@ -579,7 +579,7 @@ const DayBookInc = () => {
             sum +
             (parseInt(item.cash, 10) || 0),
             0
-        ) + (parseInt(preOpen?.Closecash, 10) || 0)
+        ) + (parseInt(preOpen?.cash, 10) || 0)
     );
     const savedData = {
         date,
@@ -1310,7 +1310,7 @@ const DayBookInc = () => {
                                         <tbody>{/* Opening Balance Row */}
                                             <tr className="bg-gray-100 font-bold">
                                                 <td colSpan="10" className="border p-2 text-left">OPENING BALANCE</td>
-                                                <td className="border p-2 text-right">{preOpen?.Closecash || 0}</td>
+                                                <td className="border p-2 text-right">{preOpen?.cash || 0}</td>
                                                 <td className="border p-2 text-right">{preOpen?.rbl ?? 0}</td>
                                                 <td className="border p-2 text-right">0</td>
                                                 <td className="border p-2 text-right">0</td>
@@ -1634,7 +1634,7 @@ const DayBookInc = () => {
 
                                             <div className="flex justify-between mt-4 text-lg font-semibold border-t pt-4">
                                                 <span>TOTAL</span>
-                                                <span>{preOpen1?.cash || totalAmount.toLocaleString()}</span>
+                                                <span>{preOpen1?.Closecash ? preOpen1?.Closecash.toLocaleString() : totalAmount.toLocaleString()}</span>
                                             </div>
                                         </div>
 
@@ -1648,12 +1648,12 @@ const DayBookInc = () => {
                                                 </div>
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-gray-700">Physical Cash</span>
-                                                    <span className="font-bold text-lg">{preOpen1?.Closecash ? preOpen1?.cash?.toLocaleString() : totalAmount.toLocaleString()}</span>
+                                                    <span className="font-bold text-lg">{preOpen1?.Closecash ? preOpen1?.Closecash?.toLocaleString() : totalAmount.toLocaleString()}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center pt-3 border-t">
                                                     <span className="text-red-600 font-semibold">Differences</span>
                                                     <span className="font-bold text-lg text-red-600">
-                                                        {preOpen1?.cash ? ((totalCash - preOpen1?.cash) * -1).toLocaleString() : ((totalCash - totalAmount) * -1).toLocaleString()}
+                                                        {preOpen1?.Closecash ? ((totalCash - preOpen1?.Closecash) * -1).toLocaleString() : ((totalCash - totalAmount) * -1).toLocaleString()}
                                                     </span>
                                                 </div>
                                             </div>
