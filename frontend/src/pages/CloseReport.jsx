@@ -75,7 +75,7 @@ const CloseReport = () => {
           const openingRes = await Promise.race([
             fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${transaction.locCode}&date=${prevDayStr}`),
             new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Timeout')), 5000) // 5 second timeout
+              setTimeout(() => reject(new Error('Timeout')), 60000) // 15 second timeout (increased for production)
             )
           ]);
           
@@ -83,7 +83,7 @@ const CloseReport = () => {
             const openingData = await openingRes.json();
             return {
               locCode: transaction.locCode,
-              openingCash: Number(openingData?.data?.Closecash ?? openingData?.data?.cash ?? 0),
+              openingCash: Number(openingData?.data?.cash ?? openingData?.data?.Closecash ?? 0),
               status: 'success'
             };
           } else if (openingRes.status === 404) {
@@ -146,11 +146,18 @@ const CloseReport = () => {
         const storeName = foundLoc ? foundLoc.locName : "Unknown";
         const openingCash = openingBalanceMap[transaction.locCode] || 0;
         
-        // Add opening cash to transaction cash
-        const totalCash = Number(transaction.cash || 0) + openingCash;
+        // ✅ FIXED: transaction.cash now contains day's transactions (not calculated closing)
+        // Calculate closing cash = opening + day's transactions
+        const calculatedClosingCash = Number(transaction.cash || 0) + openingCash;
         
-        // Compare total cash with close cash
-        const match = transaction.Closecash === totalCash ? 'Match' : 'Mismatch';
+        // Physical cash is what user entered (stored in Closecash field)
+        const physicalCash = Number(transaction.Closecash || 0);
+        
+        // Difference = Calculated Closing Cash - Physical Cash
+        const difference = calculatedClosingCash - physicalCash;
+        
+        // Match if difference is 0
+        const match = difference === 0 ? 'Match' : 'Mismatch';
         
         // Calculate Bank + UPI (excluding RBL) to match DayBookInc logic
         const bankAmount = parseInt(transaction.bank || 0);
@@ -159,7 +166,9 @@ const CloseReport = () => {
         
         return { 
           ...transaction,
-          cash: totalCash, // Override with total cash (opening + day's transactions)
+          cash: calculatedClosingCash, // Calculated closing cash (for "Cash" column)
+          Closecash: physicalCash, // Physical cash entered by user (for "Close Cash" column)
+          difference: difference, // Store the difference
           openingCash, // Store opening cash for reference
           match, 
           storeName,
@@ -287,7 +296,7 @@ const CloseReport = () => {
                         <td className="border p-2">{transaction.bankPlusUpi}</td>
                         <td className="border p-2">{transaction.cash}</td>
                         <td className="border p-2">{transaction.Closecash}</td>
-                        <td className='border p-2'>{Math.abs(transaction.cash - transaction.Closecash)}</td>
+                        <td className='border p-2'>{transaction.difference}</td>
                         <td className={`border p-2 ${transaction.match === 'Match' ? 'text-green-600 font-bold' : 'text-red-600 font-bold'}`}>
                           {transaction.match}
                         </td>
