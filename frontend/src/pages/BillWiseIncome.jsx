@@ -574,13 +574,26 @@ const DayBookInc = () => {
     );
 
 
-    const totalCash = (
-        filteredTransactions?.reduce((sum, item) =>
-            sum +
-            (parseInt(item.cash, 10) || 0),
-            0
-        ) + (parseInt(preOpen?.cash, 10) || 0)
-    );
+    // ✅ CRITICAL FIX: Use 'cash' field (calculated closing cash) for opening balance, not 'Closecash' (physical cash)
+    // The 'cash' field contains the previous day's total closing cash, which should be today's opening
+    // This ensures: Previous day's total closing → Today's opening → Today's total closing → Next day's opening
+    const openingCash = parseInt(preOpen?.cash ?? preOpen?.Closecash ?? 0, 10);
+    const dayCashTransactions = filteredTransactions?.reduce((sum, item) =>
+        sum + (parseInt(item.cash, 10) || 0),
+        0
+    ) || 0;
+    const totalCash = dayCashTransactions + openingCash;
+    
+    console.log('💰 Financial Summary Total Cash Calculation:', {
+        previousDayCash: preOpen?.cash,
+        previousDayClosecash: preOpen?.Closecash,
+        openingCashUsed: openingCash,
+        dayCashTransactions,
+        totalCash,
+        date,
+        locCode,
+        note: 'totalCash (calculated closing) will be saved as "cash" field and used as next day opening'
+    });
     const savedData = {
         date,
         locCode,
@@ -636,23 +649,35 @@ const DayBookInc = () => {
 
     const GetCreateCashBank = async () => {
         try {
+            console.log("🔍 Fetching opening balance from:", apiUrl6);
             const response = await fetch(apiUrl6, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                 },
             });
-            // alert(apiUrl6)
 
             if (!response.ok) {
-                throw new Error('Error saving data');
+                if (response.status === 404) {
+                    console.log("⚠️  No previous day closing data found - using 0 as opening balance");
+                    setPreOpen(null);
+                    return;
+                }
+                throw new Error(`Error fetching opening balance: ${response.status}`);
             }
 
             const data = await response.json();
-            console.log("Data saved successfully:", data);
-            setPreOpen(data?.data)
+            console.log("📊 Opening Balance Fetched:", {
+                cash: data?.data?.cash,
+                Closecash: data?.data?.Closecash,
+                fullData: data?.data,
+                note: "cash field will be used as opening balance for calculations"
+            });
+            setPreOpen(data?.data);
         } catch (error) {
-            console.error("Error saving data:", error);
+            console.error("❌ Error fetching opening balance:", error);
+            // Set to null so opening balance defaults to 0
+            setPreOpen(null);
         }
     };
 
@@ -1307,10 +1332,10 @@ const DayBookInc = () => {
                                                 {showAction && <th className="border p-2 text-center whitespace-nowrap">Action</th>}
                                             </tr>
                                         </thead>
-                                        <tbody>{/* Opening Balance Row */}
+                                        <tbody>                                            {/* Opening Balance Row */}
                                             <tr className="bg-gray-100 font-bold">
                                                 <td colSpan="10" className="border p-2 text-left">OPENING BALANCE</td>
-                                                <td className="border p-2 text-right">{preOpen?.cash || 0}</td>
+                                                <td className="border p-2 text-right">{preOpen?.cash ?? preOpen?.Closecash ?? 0}</td>
                                                 <td className="border p-2 text-right">{preOpen?.rbl ?? 0}</td>
                                                 <td className="border p-2 text-right">0</td>
                                                 <td className="border p-2 text-right">0</td>
@@ -1582,7 +1607,18 @@ const DayBookInc = () => {
                                         <tfoot>
                                             <tr className="bg-gray-50 font-semibold">
                                                 <td colSpan="10" className="border border-gray-300 px-4 py-2 text-left">Total:</td>
-                                                <td className="border border-gray-300 px-4 py-2 text-right">{totalCash}</td>
+                                                <td className="border border-gray-300 px-4 py-2 text-right">
+                                                    {(() => {
+                                                        console.log('🔍 Total Row - Displaying totalCash:', {
+                                                            totalCash,
+                                                            totalAmount,
+                                                            dayCashTransactions,
+                                                            openingCash,
+                                                            note: 'This should be calculated closing cash (opening + day transactions)'
+                                                        });
+                                                        return totalCash;
+                                                    })()}
+                                                </td>
                                                 <td className="border border-gray-300 px-4 py-2 text-right">{totalRblAmount}</td>
                                                 <td className="border border-gray-300 px-4 py-2 text-right">{totalBankAmount1}</td>
                                                 <td className="border border-gray-300 px-4 py-2 text-right">{totalBankAmountupi}</td>

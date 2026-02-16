@@ -79,7 +79,8 @@ const AllLoation = [
   { locName: "G.Palakkad ", locCode: "705" },
   { locName: "G.Kalpetta", locCode: "717" },
   { locName: "G.Kannur", locCode: "716" },
-  { locName: "G.MG Road", locCode: "718" }
+  { locName: "G.MG Road", locCode: "718" },
+  { locName: "WAREHOUSE", locCode: "103" }
 ];
 
 const allStoresCsvHeaders = [
@@ -149,6 +150,8 @@ const Datewisedaybook = () => {
       try {
         const openRes = await fetch(`${baseUrl.baseUrl}user/getsaveCashBank?locCode=${locCode}&date=${prevDayStr}`);
         const openData = await openRes.json();
+        // ✅ CRITICAL FIX: Use 'cash' field (calculated closing cash) for opening balance, not 'Closecash' (physical cash)
+        // The 'cash' field contains the previous day's total closing cash, which should be today's opening
         openingCash = Number(openData?.data?.cash ?? openData?.data?.Closecash ?? 0);
         openingRbl = Number(openData?.data?.rbl ?? 0); // ✅ Added RBL opening
       } catch {}
@@ -1005,9 +1008,10 @@ const Datewisedaybook = () => {
     return matchesCategory && matchesSubCategory;
   });
 
+  // ✅ CRITICAL FIX: Use 'cash' field (calculated closing cash) for opening balance, not 'Closecash' (physical cash)
+  // The 'cash' field contains the previous day's total closing cash, which should be today's opening
   const openingCash = toNumber(
-    preOpen?.cash ??
-    preOpen?.Closecash ??
+    preOpen?.cash ?? preOpen?.Closecash ??  // Calculated closing cash from previous day (fallback to physical for backward compatibility)
     0
   );
 

@@ -3,10 +3,25 @@ import Transaction from "../model/Transaction.js";
 
 export const CloseController = async (req, res) => {
     try {
-        // ✅ FIXED FIELD MAPPING:
-        // totalCash = calculated closing cash (opening + day's transactions) → save as 'cash'
-        // totalAmount = physical cash from denominations → save as 'Closecash'
+        // ✅ CORRECT FIELD MAPPING:
+        // The frontend sends:
+        // - totalCash = calculated closing cash (RootFin total, shown as "Closing Cash" in UI) = 20602
+        // - totalAmount = physical cash from denominations (shown as "Physical Cash" in UI) = 20600
+        // 
+        // We need to save:
+        // - cash field = calculated closing cash (totalCash) = 20602 - used as next day's opening balance
+        // - Closecash field = physical cash count (totalAmount) = 20600
+        //
+        // The mapping is correct - totalCash → cash, totalAmount → Closecash
         const { totalBankAmount: bank, totalAmount: Closecash, locCode, date, totalCash: cash, email } = req.body;
+        
+        console.log("💰 Saving close data:", {
+            receivedTotalCash: req.body.totalCash,
+            receivedTotalAmount: req.body.totalAmount,
+            savingAsCash: cash,
+            savingAsClosecash: Closecash,
+            note: "cash = calculated closing (next day opening), Closecash = physical count"
+        });
 
         console.log(bank, cash, Closecash, email, locCode, date);
 
@@ -82,27 +97,51 @@ export const CloseController = async (req, res) => {
 
 export const GetCloseController = async (req, res) => {
     try {
+        const { date, locCode } = req.query;
+        if (!date || !locCode) {
+            return res.status(400).json({
+                message: "date and locCode are required"
+            });
+        }
 
-        const { date, locCode } = req.query
-        console.log(date, locCode);
-
+        const targetDate = new Date(date);
+        const startOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+        const endOfDay = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 1);
 
         const data = await CloseTransaction.findOne({
-            date, locCode
-        })
+            locCode,
+            date: {
+                $gte: startOfDay,
+                $lt: endOfDay
+            }
+        });
+
         if (!data) {
             return res.status(404).json({
                 message: "No Data Found"
-            })
+            });
         }
+
+        // Convert to plain object to ensure all fields are accessible
+        const dataObj = data.toObject ? data.toObject() : (data._doc || data);
+        
+        // ✅ Return cash field (calculated closing) as the opening balance for next day
+        // This is the value that should be used as next day's opening
+        console.log(`📊 GetCloseController for ${locCode} on ${date}:`, {
+            cash: dataObj.cash,
+            Closecash: dataObj.Closecash,
+            note: "cash field (calculated closing) will be used as next day's opening balance"
+        });
+
         res.status(200).json({
             message: "data Found",
-            data: data
-        })
+            data: dataObj
+        });
     } catch (error) {
+        console.error("GetCloseController error:", error);
         res.status(500).json({
             message: "Internal server Error"
-        })
+        });
     }
 }
 
@@ -128,6 +167,11 @@ export const GetAllCloseData = async (req, res) => {
                 $gte: startOfDay,
                 $lt: endOfDay
             }
+        });
+
+        console.log(`Found ${manualCloseData.length} close documents for date ${date}`);
+        manualCloseData.forEach(doc => {
+            console.log(`  - locCode: ${doc.locCode}, cash: ${doc.cash}, Closecash: ${doc.Closecash}, date: ${doc.date}`);
         });
 
         // Calculate actual bank amounts (Bank + UPI) from transactions for each store
@@ -247,11 +291,80 @@ export const GetAllCloseData = async (req, res) => {
                 console.log(`MongoDB Total for ${closeData.locCode}: Bank=${mongoBank}, UPI=${mongoUPI}, Cash=${mongoCash}`);
                 console.log(`Combined Total for ${closeData.locCode}: Bank=${totalBank}, UPI=${totalUPI}, RBL=${externalRbl}, Bank+UPI=${calculatedBankUPI}, Cash=${totalCash}`);
 
+                // ✅ CRITICAL FIX: Get opening cash from previous day's 'cash' field (calculated closing cash)
+                // The 'cash' field contains the total closing cash from previous day, which should be today's opening
+                const prevDate = new Date(startOfDay);
+                prevDate.setDate(prevDate.getDate() - 1);
+                const prevDayStart = new Date(prevDate.getFullYear(), prevDate.getMonth(), prevDate.getDate());
+                const prevDayEnd = new Date(prevDate.getFullYear(), prevDate.getMonth(), prevDate.getDate() + 1);
+
+                let openingCash = 0;
+                try {
+                    const prevClosing = await CloseTransaction.findOne({
+                        locCode: closeData.locCode,
+                        date: { $gte: prevDayStart, $lt: prevDayEnd }
+                    });
+                    // ✅ Use 'cash' field (calculated closing) first, fallback to 'Closecash' (physical) for backward compatibility
+                    openingCash = Number(prevClosing?.cash ?? prevClosing?.Closecash ?? 0);
+                    console.log(`Opening cash for ${closeData.locCode}: ${openingCash} (from previous day's stored close)`);
+                } catch (err) {
+                    console.error(`Error fetching opening cash for ${closeData.locCode}:`, err);
+                }
+
+                // ✅ Calculate closing cash = opening + day's cash transactions (for debugging)
+                const calculatedClosingCash = openingCash + totalCash;
+                console.log(`Calculated closing cash for ${closeData.locCode}: ${openingCash} (opening) + ${totalCash} (day's transactions) = ${calculatedClosingCash}`);
+                console.log(`Stored cash in DB for ${closeData.locCode}: ${closeData.cash}`);
+
+                // ✅ CRITICAL FIX: Always use stored cash value from DB if it exists, otherwise calculate
+                // Convert Mongoose document to plain object to access all properties
+                const closeDataObj = closeData.toObject ? closeData.toObject() : (closeData._doc || closeData);
+                
+                // Read cash and Closecash values directly from the object
+                // These are the values saved via Admin Close
+                const storedCashRaw = closeDataObj.cash;
+                const storedClosecashRaw = closeDataObj.Closecash;
+                
+                // Convert to numbers, handling both string and number inputs
+                // If value is 0, that's a valid value, so we check for null/undefined specifically
+                const storedCashValue = storedCashRaw != null && storedCashRaw !== undefined 
+                    ? Number(storedCashRaw) 
+                    : null;
+                const storedClosecashValue = storedClosecashRaw != null && storedClosecashRaw !== undefined
+                    ? Number(storedClosecashRaw)
+                    : null;
+                
+                // Only use calculated if stored value is truly missing (null/undefined), not if it's 0
+                const finalCash = storedCashValue != null && storedCashValue !== undefined 
+                    ? storedCashValue 
+                    : calculatedClosingCash;
+                
+                // Use stored Closecash, or fallback to 0 if missing
+                const finalClosecash = storedClosecashValue != null && storedClosecashValue !== undefined
+                    ? storedClosecashValue
+                    : 0;
+                
+                console.log(`💰 Cash values for ${closeData.locCode}:`, {
+                    closeDataObjCash: closeDataObj.cash,
+                    closeDataObjClosecash: closeDataObj.Closecash,
+                    storedCashRaw,
+                    storedClosecashRaw,
+                    storedCashValue,
+                    storedClosecashValue,
+                    calculatedClosingCash,
+                    finalCash,
+                    finalClosecash,
+                    fullCloseData: JSON.stringify(closeDataObj)
+                });
+
                 return {
-                    ...closeData._doc,
+                    ...closeDataObj,
                     // Update bank column to show Bank + UPI total
                     bank: calculatedBankUPI,
-                    cash: totalCash
+                    // ✅ Use stored cash value from DB (the value saved via Admin Close)
+                    cash: finalCash,
+                    // ✅ Use stored Closecash value from DB (the physical cash counted)
+                    Closecash: finalClosecash
                 };
             })
         );
