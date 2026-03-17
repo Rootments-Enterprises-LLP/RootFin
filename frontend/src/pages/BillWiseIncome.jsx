@@ -241,6 +241,7 @@ const DayBookInc = () => {
 
     // Memoized constants for better performance - MOVED UP to fix initialization order
     const allowedMongoCategories = useMemo(() => [
+        // Original categories
         "petty expenses",
         "staff reimbursement", 
         "maintenance expenses",
@@ -272,7 +273,24 @@ const DayBookInc = () => {
         "refund",
         "cancel",
         "rentout",
-        "rent out"
+        "rent out",
+        // New expense categories from updated Expenses.jsx
+        "dry cleaning",
+        "altration",
+        "material",
+        "travel exp",
+        "fuel exp",
+        "waste management",
+        "water charges",
+        "printing stationary",
+        "staff welfare",
+        "staff accommodation",
+        "incentive",
+        // Income categories
+        "advance",
+        "balance payable",
+        "compensation from cancellation",
+        "compensation from product damage",
     ], []);
 
     // Process all transactions only when everything is loaded
@@ -402,6 +420,27 @@ const DayBookInc = () => {
             };
         });
 
+        const expenseCategoryValues = new Set([
+            "petty expenses","staff reimbursement","maintenance expenses","telephone internet",
+            "utility bill","salary","rent","courier charges","asset purchase","promotion_services",
+            "spot incentive","bulk amount transfer","other expenses","shoe sales return",
+            "shirt sales return","dry cleaning","altration","material","travel exp","fuel exp",
+            "waste management","water charges","printing stationary","staff welfare",
+            "staff accommodation","incentive","write off",
+        ]);
+        const incomeCategoryValues = new Set([
+            "shoe sales","shirt sales","mixed sales","compensation","advance","balance payable",
+            "compensation from cancellation","compensation from product damage",
+        ]);
+        const inferType = (tx) => {
+            const t = (tx.type || "").toLowerCase();
+            if (t) return tx.type;
+            const c = (tx.category || tx.Category || "").toLowerCase();
+            if (expenseCategoryValues.has(c)) return "expense";
+            if (incomeCategoryValues.has(c)) return "income";
+            return tx.Category || tx.category || "";
+        };
+
         const mongoTransactions = (dayBookData || []).filter(transaction => {
             const cat = (transaction.category || transaction.Category || "").toLowerCase();
             return allowedMongoCategories.includes(cat);
@@ -409,8 +448,8 @@ const DayBookInc = () => {
             ...transaction,
             locCode: currentusers.locCode,
             date: transaction.date ? transaction.date.split("T")[0] : transaction.date,
-            Category: transaction.category || transaction.Category || transaction.type,
-            SubCategory: transaction.subCategory || transaction.SubCategory,
+            Category: inferType(transaction),
+            SubCategory: transaction.category || transaction.subCategory || transaction.SubCategory,
             invoiceNo: transaction.invoiceNo || transaction.invoiceNumber || transaction.invoiceId || transaction.locCode,
             customerName: transaction.customerName || transaction.customer || transaction.custName || "",
             cash1: transaction.cash,
@@ -1447,8 +1486,8 @@ const DayBookInc = () => {
                                                                 <td className="border p-2 text-left whitespace-nowrap">{transaction.date}</td>
                                                                 <td className="border p-2 text-left whitespace-nowrap">{transaction.invoiceNo || transaction.locCode}</td>
                                                                 <td className="border p-2 text-left whitespace-nowrap">{transaction.customerName}</td>
-                                                                <td className="border p-2 text-left whitespace-nowrap">{transaction.category || transaction.Category || transaction.type}</td>
-                                                                <td className="border p-2 text-left whitespace-nowrap">{transaction.subCategory || transaction.SubCategory}</td>
+                                                                <td className="border p-2 text-left whitespace-nowrap">{transaction.Category || transaction.type || transaction.category}</td>
+                                                                <td className="border p-2 text-left whitespace-nowrap">{transaction.SubCategory || transaction.subCategory}</td>
                                                                 <td className="border p-2 text-left">{transaction.remark}</td>
                                                                 <td className="border p-2 text-right">
                                                                     {transaction.Category === 'Return' && transaction.returnCashAmount !== undefined ?

@@ -6,21 +6,28 @@ import { MdCurrencyRupee } from "react-icons/md";
 import { ChevronDown } from "lucide-react";
 
 const baseExpenseCats = [
-  { value: "petty expenses",       label: "Petty Expenses",        subs: [] },
-  { value: "maintenance expenses", label: "Repairs & Maintenance", subs: ["Interior Maintenance", "Glass Cleaning", "Electrical work"] },
-  { value: "staff reimbursement",  label: "Staff Reimbursement",   subs: [] },
-  { value: "telephone internet",   label: "Telephone & Internet",  subs: [] },
-  { value: "utility bill",         label: "Utility Bill",          subs: [] },
-  { value: "salary",               label: "Salary",                subs: [] },
-  { value: "rent",                 label: "Rent",                  subs: [] },
-  { value: "courier charges",      label: "Courier Charges",       subs: [] },
-  { value: "asset purchase",       label: "Asset Purchase",        subs: [] },
-  { value: "promotion_services",   label: "Promotion & Services",  subs: [] },
-  { value: "spot incentive",       label: "Spot Incentive",        subs: [] },
-  { value: "bulk amount transfer", label: "Bulk Amount Transfer",  subs: [] },
-  { value: "other expenses",       label: "Other Expenses",        subs: [] },
-  { value: "shoe sales return",    label: "Shoe Sales Return",     subs: [] },
-  { value: "shirt sales return",   label: "Shirt Sales Return",    subs: [] },
+  { value: "dry cleaning",          label: "Dry Cleaning",           subs: ["Dry cleaning"] },
+  { value: "altration",             label: "Altration",              subs: ["Altration"] },
+  { value: "material",              label: "Material",               subs: ["Material"] },
+  { value: "courier charges",       label: "Courier Charges",        subs: ["Courier charges"] },
+  { value: "maintenance expenses",  label: "Repairs & Maintenance",  subs: ["Ac service", "Interior Maintenance", "Glass Cleaning", "Electrical work"] },
+  { value: "travel exp",            label: "Travel Exp",             subs: ["Travel exp"] },
+  { value: "fuel exp",              label: "Fuel Exp",               subs: ["Fuel exp"] },
+  { value: "petty expenses",        label: "Office Expense",         subs: ["Air freshner", "Grooming Kit", "Cleaning Products", "Parking charge"] },
+  { value: "telephone internet",    label: "Internet Expense",       subs: ["Telephone/wifi"] },
+  { value: "utility bill",          label: "Electricity Charges",    subs: ["Electricity Charges"] },
+  { value: "waste management",      label: "Waste Management",       subs: ["Waste management"] },
+  { value: "water charges",         label: "Water Charges",          subs: ["Water charges"] },
+  { value: "salary",                label: "Salary/Salary Advance",  subs: ["Salary/salary advance"] },
+  { value: "printing stationary",   label: "Printing & Stationary",  subs: ["Printout", "Books/pen/Checklist/Register/Bill Book/Voucher", "Stationary Items"] },
+  { value: "staff welfare",         label: "Staff Welfare",          subs: ["Cake purchase", "Food allowance on Special Occassion", "Other Refreshment"] },
+  { value: "staff reimbursement",   label: "Staff Accommodation",    subs: ["Staff room rent/Electricity"] },
+  { value: "rent",                  label: "Rent",                   subs: ["Store Rent"] },
+  { value: "asset purchase",        label: "Asset Purchase",         subs: ["Steamer", "Chairs", "Electronic Items", "Any other Furniture items"] },
+  { value: "spot incentive",        label: "Incentive",              subs: ["Spot incentive", "Weekly incentive"] },
+  { value: "shoe sales return",     label: "Shosale Return",         subs: ["Shosale return"] },
+  { value: "other expenses",        label: "Refund",                 subs: ["Security Refund", "Cancellation Refund", "Compensation"] },
+  { value: "bulk amount transfer",  label: "Cash to Bank",           subs: ["Cash Deposit"] },
 ];
 
 const Expenses = () => {
@@ -141,20 +148,13 @@ const Expenses = () => {
               </div>
             </div>
 
-            {/* Sub-category chips */}
+            {/* Sub-category labels */}
             {selectedCategory.subs?.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-6 mt-3">
                 {selectedCategory.subs.map(sub => (
-                  <button key={sub} type="button"
-                    onClick={() => setSubCategory(subCategory === sub ? "" : sub)}
-                    className={`px-4 py-1.5 rounded-full text-sm border transition ${
-                      subCategory === sub
-                        ? "bg-[#1e3a8a] text-white border-[#1e3a8a]"
-                        : "border-[#c7d2fe] text-[#374151] bg-[#f0f4ff] hover:border-[#1e3a8a]"
-                    }`}
-                  >
+                  <span key={sub} className="px-4 py-1.5 rounded-lg text-sm font-medium text-[#3b5bdb] bg-[#e8edff]">
                     {sub}
-                  </button>
+                  </span>
                 ))}
               </div>
             )}

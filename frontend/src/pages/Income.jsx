@@ -6,16 +6,19 @@ import { MdCurrencyRupee } from "react-icons/md";
 import { ChevronDown } from "lucide-react";
 
 const baseIncomeCats = [
-  { value: "Compensation", label: "Compensation" },
-  { value: "shoe sales",   label: "Shoe Sales" },
-  { value: "shirt sales",  label: "Shirt Sales" },
-  { value: "mixed sales",  label: "Mixed Sales (Shoes & Shirts)" },
+  { value: "advance",                        label: "Advance" },
+  { value: "Balance Payable",                label: "Balance Payable" },
+  { value: "shoe sales",                     label: "Shoe Sale" },
+  { value: "shirt sales",                    label: "Shirt Sale" },
+  { value: "compensation from cancellation", label: "Compensation from Cancellation" },
+  { value: "compensation from product damage", label: "Compensation from Product Damage" },
+  { value: "bank to cash",                   label: "Cash to Branch (*Bank to Cash)" },
 ];
 
 const Income = () => {
   const currentusers = JSON.parse(localStorage.getItem("rootfinuser")) || {};
   const isAdmin = (currentusers.power || "").toLowerCase() === "admin";
-  const cats = isAdmin ? [...baseIncomeCats, { value: "write off", label: "Write Off" }] : baseIncomeCats;
+  const cats = baseIncomeCats;
 
   const [selectedCategory, setSelectedCategory] = useState(cats[0]);
   const [amount, setAmount] = useState("");
