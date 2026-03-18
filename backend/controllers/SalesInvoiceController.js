@@ -152,21 +152,6 @@ export const createSalesInvoice = async (req, res) => {
     const invoice = await SalesInvoice.create(invoiceData);
     console.log("✅ MongoDB invoice created:", invoice.invoiceNumber);
 
-    // Save to PostgreSQL
-    try {
-      const postgresInvoiceData = {
-        ...invoiceData,
-        // Convert MongoDB ObjectId to string if needed
-        mongoId: invoice._id.toString(),
-      };
-      
-      const postgresInvoice = await SalesInvoicePostgres.create(postgresInvoiceData);
-      console.log("✅ PostgreSQL invoice created:", postgresInvoice.invoiceNumber);
-    } catch (postgresError) {
-      console.error("❌ Error saving to PostgreSQL:", postgresError);
-      // Don't fail the invoice creation if PostgreSQL fails
-    }
-
     console.log("Created invoice with customerPhone:", invoice.customerPhone);
     console.log("Full created invoice:", invoice.toObject());
 
@@ -305,21 +290,6 @@ const createFinancialTransaction = async (invoice) => {
     // Save transaction to MongoDB
     const transaction = await Transaction.create(transactionData);
     console.log("✅ MongoDB transaction created:", transaction.invoiceNo);
-
-    // Save transaction to PostgreSQL
-    try {
-      const postgresTransactionData = {
-        ...transactionData,
-        // Convert MongoDB ObjectId to string if needed
-        mongoId: transaction._id.toString(),
-      };
-      
-      const postgresTransaction = await TransactionPostgres.create(postgresTransactionData);
-      console.log("✅ PostgreSQL transaction created:", postgresTransaction.invoiceNo);
-    } catch (postgresError) {
-      console.error("❌ Error saving transaction to PostgreSQL:", postgresError);
-      // Don't fail if PostgreSQL fails
-    }
 
     console.log("Transaction details:", {
       type: transactionType,

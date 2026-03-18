@@ -862,6 +862,27 @@ const SalesInvoiceCreate = () => {
     "G.Kottayam Branch": "701",
     "Kottayam Branch": "701",
     "Kottayam": "701",
+    
+    // All dropdown branch name variations
+    "Edapally Branch": "702",
+    "Chavakkad Branch": "706",
+    "Edappal Branch": "707",
+    "Kalpetta Branch": "717",
+    "Kannur Branch": "716",
+    "Kottakkal Branch": "711",
+    "Manjery Branch": "710",
+    "Manjeri Branch": "710",
+    "Palakkad Branch": "705",
+    "Perinthalmanna Branch": "709",
+    "Perumbavoor Branch": "703",
+    "Thrissur Branch": "704",
+    "Vadakara Branch": "708",
+    "Calicut": "712",
+    "Calicut Branch": "712",
+    "Z-Edapally1 Branch": "144",
+    "Z-Edappal Branch": "100",
+    "Z-Perinthalmanna Branch": "133",
+    "Z-Kottakkal Branch": "122",
   };
 
   const navigate = useNavigate();
