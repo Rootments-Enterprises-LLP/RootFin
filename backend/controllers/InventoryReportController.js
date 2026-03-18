@@ -1360,14 +1360,9 @@ export const getStockOnHandReport = async (req, res) => {
   try {
     const { locCode, warehouse, startDate, endDate } = req.query;
     const userId = req.query.userId || req.body.userId;
-    
+
     console.log("📊 Stock On Hand Report Request:", { locCode, warehouse, startDate, endDate });
-    console.log("📅 Date objects:", { 
-      startDateObj: startDate ? new Date(startDate) : null, 
-      endDateObj: endDate ? new Date(endDate) : new Date(),
-      currentDate: new Date()
-    });
-    
+
     // Check if user is admin
     const adminEmails = ['officerootments@gmail.com'];
     const isAdminEmail = userId && adminEmails.some(email => userId.toLowerCase() === email.toLowerCase());
@@ -1477,606 +1472,128 @@ export const getStockOnHandReport = async (req, res) => {
     });
     
     const items = [...standaloneItems.map(item => ({ ...item.toObject ? item.toObject() : item, isFromGroup: false })), ...groupItems];
-    
-    console.log(`📊 Stock On Hand Report Debug:`, {
-      startDate: startDateObj,
-      endDate: endDateObj,
-      warehouse: warehouse,
-      normalizedWarehouse: normalizedWarehouse,
-      totalItems: items.length,
-      warehouseVariations: warehouseVariations
-    });
-    
-    // Debug: Check what sales invoices exist in the period
-    try {
-      const allSalesInvoicesInPeriod = await SalesInvoice.find({
-        createdAt: { 
-          $gte: startDateObj,
-          $lte: endDateObj 
-        }
-      }).select('_id warehouse createdAt items');
-      
-      console.log(`📋 Found ${allSalesInvoicesInPeriod.length} total sales invoices in period:`, 
-        allSalesInvoicesInPeriod.map(si => ({
-          id: si._id,
-          warehouse: si.warehouse,
-          date: si.createdAt,
-          itemCount: (si.items?.length || si.lineItems?.length || 0)
-        }))
-      );
-    } catch (error) {
-      console.log("Warning: Could not fetch debug sales invoices:", error.message);
+    console.log(`📊 Processing ${items.length} items — fetching all movements in bulk...`);
+
+    // ── BULK FETCH: 3 queries total instead of ~1000 ──────────────────────
+    const dayBeforeStart = new Date(startDateObj);
+    dayBeforeStart.setDate(dayBeforeStart.getDate() - 1);
+    dayBeforeStart.setHours(23, 59, 59, 999);
+
+    const [allPurchaseReceives, allTransferOrders, allSalesInvoices] = await Promise.all([
+      PurchaseReceive.find({ status: 'received', createdAt: { $lte: endDateObj } }).select('items toWarehouse createdAt').lean(),
+      TransferOrder.find({ status: 'completed', createdAt: { $lte: endDateObj } }).select('items sourceWarehouse destinationWarehouse createdAt').lean(),
+      SalesInvoice.find({ createdAt: { $gte: startDateObj, $lte: endDateObj } }).select('items lineItems warehouse createdAt').lean(),
+    ]);
+
+    // Index movements by itemId for O(1) lookup
+    const prByItem = new Map();
+    for (const pr of allPurchaseReceives) {
+      for (const it of (pr.items || [])) {
+        const id = it.itemId?.toString();
+        if (!id) continue;
+        if (!prByItem.has(id)) prByItem.set(id, []);
+        prByItem.get(id).push({ qty: parseFloat(it.receivedQuantity || it.quantity || it.received) || 0, warehouse: pr.toWarehouse, date: new Date(pr.createdAt) });
+      }
     }
-    
-    // Calculate stock on hand for each item
+    const toInByItem = new Map();
+    const toOutByItem = new Map();
+    for (const to of allTransferOrders) {
+      for (const it of (to.items || [])) {
+        const id = it.itemId?.toString();
+        if (!id) continue;
+        const qty = parseFloat(it.quantity) || 0;
+        const date = new Date(to.createdAt);
+        if (!toInByItem.has(id)) toInByItem.set(id, []);
+        toInByItem.get(id).push({ qty, warehouse: to.destinationWarehouse, date });
+        if (!toOutByItem.has(id)) toOutByItem.set(id, []);
+        toOutByItem.get(id).push({ qty, warehouse: to.sourceWarehouse, date });
+      }
+    }
+    const salesByItem = new Map();
+    for (const si of allSalesInvoices) {
+      const invoiceItems = getInvoiceItems(si);
+      for (const it of invoiceItems) {
+        const id = it.itemId?.toString();
+        if (!id) continue;
+        if (!salesByItem.has(id)) salesByItem.set(id, []);
+        salesByItem.get(id).push({ qty: parseFloat(it.quantity) || 0, warehouse: si.warehouse, date: new Date(si.createdAt) });
+      }
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
+    // Calculate stock on hand for each item (pure in-memory, no more DB calls)
     const stockOnHandData = [];
     let totalStockOnHand = 0;
     let totalStockValue = 0;
     let totalStockIn = 0;
     let totalStockOut = 0;
     let totalOpeningStock = 0;
-    
+
     for (const item of items) {
-      console.log(`\n🔍 Processing item: ${item.itemName || item.name} (${item.sku})`);
-      
+      const itemId = item._id?.toString();
+
       // Determine which warehouse stocks to process
       let warehouseStocksToProcess = item.warehouseStocks || [];
-      
       if (warehouse && warehouse !== "All Stores") {
-        warehouseStocksToProcess = warehouseStocksToProcess.filter(ws => {
-          if (!ws || !ws.warehouse) return false;
-          const matches = warehouseMatches(ws.warehouse);
-          console.log(`  Warehouse: ${ws.warehouse} -> Matches: ${matches}`);
-          return matches;
-        });
+        warehouseStocksToProcess = warehouseStocksToProcess.filter(ws => ws?.warehouse && warehouseMatches(ws.warehouse));
       } else if (!isMainAdmin && locCode && locCode !== '858' && locCode !== '103') {
-        warehouseStocksToProcess = warehouseStocksToProcess.filter(ws => {
-          if (!ws || !ws.warehouse) return false;
-          const matches = warehouseMatches(ws.warehouse);
-          console.log(`  Warehouse: ${ws.warehouse} -> Matches: ${matches}`);
-          return matches;
-        });
+        warehouseStocksToProcess = warehouseStocksToProcess.filter(ws => ws?.warehouse && warehouseMatches(ws.warehouse));
       }
-      
-      console.log(`  Warehouse stocks to process: ${warehouseStocksToProcess.length}`);
       
       for (const warehouseStock of warehouseStocksToProcess) {
         const warehouseName = normalizeWarehouseName(warehouseStock.warehouse);
-        
-        // Calculate opening stock (stock as of the day before start date)
-        let openingStock = 0;
-        
-        // Always start with the item's original opening stock
+        const wsVariations = getWarehouseNameVariations(warehouseName);
+        const wsMatch = (wh) => wh && (wsVariations.includes(wh) || wsVariations.includes(normalizeWarehouseName(wh)) || normalizeWarehouseName(wh) === warehouseName);
+
         const originalOpeningStock = parseFloat(warehouseStock.openingStock) || 0;
-        
-        if (startDate) {
-          // If start date is provided, calculate opening stock as of day before start date
-          const dayBeforeStart = new Date(startDateObj);
-          dayBeforeStart.setDate(dayBeforeStart.getDate() - 1);
-          dayBeforeStart.setHours(23, 59, 59, 999); // End of previous day
-          
-          console.log(`🔍 Calculating opening stock for ${item.itemName} as of ${dayBeforeStart.toLocaleDateString()}`);
-          
-          // Only use original opening stock if the item was created before the start date
-          const itemCreationDate = new Date(item.createdAt || '2020-01-01');
-          
-          if (itemCreationDate < startDateObj) {
-            // Item was created before the period, start with original opening stock
-            openingStock = originalOpeningStock;
-            console.log(`  Item created on ${itemCreationDate.toLocaleDateString()}, using original opening stock: ${originalOpeningStock}`);
-          } else {
-            // Item was created during or after the period, no opening stock
-            openingStock = 0;
-            console.log(`  Item created on ${itemCreationDate.toLocaleDateString()} (on or after ${startDateObj.toLocaleDateString()}), no opening stock`);
+        const itemCreationDate = new Date(item.createdAt || '2020-01-01');
+
+        // Opening stock = stock before startDate
+        let openingStock = itemCreationDate < startDateObj ? originalOpeningStock : 0;
+
+        if (startDate && itemCreationDate < startDateObj) {
+          for (const r of (prByItem.get(itemId) || [])) {
+            if (wsMatch(r.warehouse) && r.date >= itemCreationDate && r.date <= dayBeforeStart) openingStock += r.qty;
           }
-          
-          // Only calculate additional movements if the day before start date is after the item creation
-          if (dayBeforeStart >= itemCreationDate && itemCreationDate < startDateObj) {
-            // Add stock from purchase receives up to day before start date
-            try {
-              const purchaseReceivesBeforeStart = await PurchaseReceive.find({
-                'items.itemId': item._id,
-                status: 'received',
-                toWarehouse: warehouseName,
-                createdAt: { 
-                  $gte: itemCreationDate,
-                  $lte: dayBeforeStart 
-                }
-              });
-              
-              console.log(`📦 Found ${purchaseReceivesBeforeStart.length} purchase receives before start date`);
-              
-              purchaseReceivesBeforeStart.forEach(pr => {
-                const prItem = pr.items.find(i => i.itemId.toString() === item._id.toString());
-                if (prItem) {
-                  const qty = parseFloat(prItem.receivedQuantity) || parseFloat(prItem.quantity) || parseFloat(prItem.received) || 0;
-                  openingStock += qty;
-                  console.log(`  ➕ Added ${qty} from purchase receive`);
-                }
-              });
-            } catch (error) {
-              console.log(`Warning: Could not calculate opening stock from purchases for item ${item.itemName}:`, error.message);
-            }
-            
-            // Add stock from transfer orders received up to day before start date
-            try {
-              const transferOrdersReceivedBeforeStart = await TransferOrder.find({
-                'items.itemId': item._id,
-                status: 'completed',
-                destinationWarehouse: warehouseName,
-                createdAt: { 
-                  $gte: itemCreationDate,
-                  $lte: dayBeforeStart 
-                }
-              });
-              
-              console.log(`🔄 Found ${transferOrdersReceivedBeforeStart.length} transfer orders received before start date`);
-              
-              transferOrdersReceivedBeforeStart.forEach(to => {
-                const toItem = to.items.find(i => i.itemId.toString() === item._id.toString());
-                if (toItem) {
-                  const qty = parseFloat(toItem.quantity) || 0;
-                  openingStock += qty;
-                  console.log(`  ➕ Added ${qty} from transfer in`);
-                }
-              });
-            } catch (error) {
-              console.log(`Warning: Could not calculate opening stock from transfers in for item ${item.itemName}:`, error.message);
-            }
-            
-            // Subtract stock from transfer orders sent up to day before start date
-            try {
-              const transferOrdersSentBeforeStart = await TransferOrder.find({
-                'items.itemId': item._id,
-                status: 'completed',
-                sourceWarehouse: warehouseName,
-                createdAt: { 
-                  $gte: itemCreationDate,
-                  $lte: dayBeforeStart 
-                }
-              });
-              
-              console.log(`🔄 Found ${transferOrdersSentBeforeStart.length} transfer orders sent before start date`);
-              
-              transferOrdersSentBeforeStart.forEach(to => {
-                const toItem = to.items.find(i => i.itemId.toString() === item._id.toString());
-                if (toItem) {
-                  const qty = parseFloat(toItem.quantity) || 0;
-                  openingStock -= qty;
-                  console.log(`  ➖ Subtracted ${qty} from transfer out`);
-                }
-              });
-            } catch (error) {
-              console.log(`Warning: Could not calculate opening stock from transfers out for item ${item.itemName}:`, error.message);
-            }
-            
-            // Subtract stock from sales invoices up to day before start date
-            try {
-              const salesInvoicesBeforeStart = await SalesInvoice.find({
-                $or: [
-                  { 'items.itemId': item._id },
-                  { 'lineItems.itemData._id': item._id.toString() }
-                ],
-                warehouse: warehouseName,
-                createdAt: { 
-                  $gte: itemCreationDate,
-                  $lte: dayBeforeStart 
-                }
-              });
-              
-              console.log(`💰 Found ${salesInvoicesBeforeStart.length} sales invoices before start date`);
-              
-              salesInvoicesBeforeStart.forEach(si => {
-                const invoiceItems = getInvoiceItems(si);
-                const siItem = invoiceItems.find(i => i.itemId.toString() === item._id.toString());
-                if (siItem) {
-                  const qty = parseFloat(siItem.quantity) || 0;
-                  openingStock -= qty;
-                  console.log(`  ➖ Subtracted ${qty} from sales`);
-                }
-              });
-            } catch (error) {
-              console.log(`Warning: Could not calculate opening stock from sales for item ${item.itemName}:`, error.message);
-            }
-            
-            // Add/subtract stock from inventory adjustments up to day before start date
-            try {
-              const relevantAdjustments = await getInventoryAdjustments({
-                warehouse: warehouseName,
-                status: 'adjusted',
-                createdAt: { 
-                  [Op.gte]: itemCreationDate,
-                  [Op.lte]: dayBeforeStart 
-                },
-                itemId: item._id.toString()
-              });
-              
-              console.log(`📊 Found ${relevantAdjustments.length} inventory adjustments before start date`);
-              
-              relevantAdjustments.forEach(ia => {
-                const iaItem = ia.items.find(i => i.itemId && i.itemId.toString() === item._id.toString());
-                if (iaItem) {
-                  const adjustmentQty = parseFloat(iaItem.quantityAdjusted) || 0;
-                  openingStock += adjustmentQty; // Can be positive or negative
-                  console.log(`  ${adjustmentQty >= 0 ? '➕' : '➖'} Adjusted by ${Math.abs(adjustmentQty)} from inventory adjustment`);
-                }
-              });
-            } catch (error) {
-              console.log(`Warning: Could not calculate opening stock from adjustments for item ${item.itemName}:`, error.message);
-            }
-          } else {
-            console.log(`  Day before start date (${dayBeforeStart.toLocaleDateString()}) is before item creation (${itemCreationDate.toLocaleDateString()}), using original opening stock only`);
+          for (const r of (toInByItem.get(itemId) || [])) {
+            if (wsMatch(r.warehouse) && r.date >= itemCreationDate && r.date <= dayBeforeStart) openingStock += r.qty;
           }
-          
-          console.log(`📊 Final opening stock for ${item.itemName}: ${openingStock}`);
-        } else {
-          // If no start date provided, use original opening stock
-          openingStock = originalOpeningStock;
-          console.log(`📊 No start date provided, using original opening stock for ${item.itemName}: ${openingStock}`);
+          for (const r of (toOutByItem.get(itemId) || [])) {
+            if (wsMatch(r.warehouse) && r.date >= itemCreationDate && r.date <= dayBeforeStart) openingStock -= r.qty;
+          }
+          for (const r of (salesByItem.get(itemId) || [])) {
+            if (wsMatch(r.warehouse) && r.date >= itemCreationDate && r.date <= dayBeforeStart) openingStock -= r.qty;
+          }
         }
-        
-        // Ensure opening stock is not negative
         openingStock = Math.max(0, openingStock);
-        
-        // Start with opening stock
-        let stockOnHand = openingStock;
-        
-        // Add stock from purchase receives up to end date (but only those after start date if start date is provided)
-        try {
-          const purchaseReceiveQuery = {
-            'items.itemId': item._id,
-            status: 'received',
-            toWarehouse: warehouseName,
-            createdAt: { $lte: endDateObj }
-          };
-          
-          // If start date is provided, only include purchases from start date onwards
-          if (startDate) {
-            purchaseReceiveQuery.createdAt.$gte = startDateObj;
-          }
-          
-          const purchaseReceives = await PurchaseReceive.find(purchaseReceiveQuery);
-          
-          purchaseReceives.forEach(pr => {
-            const prItem = pr.items.find(i => i.itemId.toString() === item._id.toString());
-            if (prItem) {
-              const qty = parseFloat(prItem.receivedQuantity) || parseFloat(prItem.quantity) || parseFloat(prItem.received) || 0;
-              stockOnHand += qty;
-              console.log(`  ➕ Added ${qty} from purchase receive in period`);
-            }
-          });
-        } catch (error) {
-          console.log(`Warning: Could not fetch purchase receives for item ${item.itemName}:`, error.message);
+
+        // Movements within period
+        let stockIn = 0;
+        let stockOut = 0;
+
+        if (itemCreationDate >= startDateObj && itemCreationDate <= endDateObj && originalOpeningStock > 0) {
+          stockIn += originalOpeningStock;
         }
-        
-        // Add stock from transfer orders (received) up to end date (but only those after start date if start date is provided)
-        try {
-          const transferOrderReceivedQuery = {
-            'items.itemId': item._id,
-            status: 'completed',
-            destinationWarehouse: warehouseName,
-            createdAt: { $lte: endDateObj }
-          };
-          
-          // If start date is provided, only include transfers from start date onwards
-          if (startDate) {
-            transferOrderReceivedQuery.createdAt.$gte = startDateObj;
-          }
-          
-          const transferOrdersReceived = await TransferOrder.find(transferOrderReceivedQuery);
-          
-          transferOrdersReceived.forEach(to => {
-            const toItem = to.items.find(i => i.itemId.toString() === item._id.toString());
-            if (toItem) {
-              const qty = parseFloat(toItem.quantity) || 0;
-              stockOnHand += qty;
-              console.log(`  ➕ Added ${qty} from transfer in during period`);
-            }
-          });
-        } catch (error) {
-          console.log(`Warning: Could not fetch transfer orders received for item ${item.itemName}:`, error.message);
+        for (const r of (prByItem.get(itemId) || [])) {
+          if (wsMatch(r.warehouse) && r.date >= startDateObj && r.date <= endDateObj) stockIn += r.qty;
         }
-        
-        // Subtract stock from transfer orders (sent) up to end date (but only those after start date if start date is provided)
-        try {
-          const transferOrderSentQuery = {
-            'items.itemId': item._id,
-            status: 'completed',
-            sourceWarehouse: warehouseName,
-            createdAt: { $lte: endDateObj }
-          };
-          
-          // If start date is provided, only include transfers from start date onwards
-          if (startDate) {
-            transferOrderSentQuery.createdAt.$gte = startDateObj;
-          }
-          
-          const transferOrdersSent = await TransferOrder.find(transferOrderSentQuery);
-          
-          transferOrdersSent.forEach(to => {
-            const toItem = to.items.find(i => i.itemId.toString() === item._id.toString());
-            if (toItem) {
-              const qty = parseFloat(toItem.quantity) || 0;
-              stockOnHand -= qty;
-              console.log(`  ➖ Subtracted ${qty} from transfer out during period`);
-            }
-          });
-        } catch (error) {
-          console.log(`Warning: Could not fetch transfer orders sent for item ${item.itemName}:`, error.message);
+        for (const r of (toInByItem.get(itemId) || [])) {
+          if (wsMatch(r.warehouse) && r.date >= startDateObj && r.date <= endDateObj) stockIn += r.qty;
         }
-        
-        // Subtract stock from sales invoices up to end date (but only those after start date if start date is provided)
-        try {
-          const salesInvoiceQuery = {
-            $or: [
-              { 'items.itemId': item._id },
-              { 'lineItems.itemData._id': item._id.toString() }
-            ],
-            warehouse: warehouseName,
-            createdAt: { $lte: endDateObj }
-          };
-          
-          // If start date is provided, only include sales from start date onwards
-          if (startDate) {
-            salesInvoiceQuery.createdAt.$gte = startDateObj;
-          }
-          
-          const salesInvoices = await SalesInvoice.find(salesInvoiceQuery);
-          
-          salesInvoices.forEach(si => {
-            const invoiceItems = getInvoiceItems(si);
-            const siItem = invoiceItems.find(i => i.itemId.toString() === item._id.toString());
-            if (siItem) {
-              const qty = parseFloat(siItem.quantity) || 0;
-              stockOnHand -= qty;
-              console.log(`  ➖ Subtracted ${qty} from sales during period`);
-            }
-          });
-        } catch (error) {
-          console.log(`Warning: Could not fetch sales invoices for item ${item.itemName}:`, error.message);
+        for (const r of (toOutByItem.get(itemId) || [])) {
+          if (wsMatch(r.warehouse) && r.date >= startDateObj && r.date <= endDateObj) stockOut += r.qty;
         }
-        
-        // Add/subtract stock from inventory adjustments up to end date (but only those after start date if start date is provided)
-        try {
-          const adjustmentQuery = {
-            warehouse: warehouseName,
-            status: 'adjusted',
-            createdAt: { [Op.lte]: endDateObj },
-            itemId: item._id.toString()
-          };
-          
-          // If start date is provided, only include adjustments from start date onwards
-          if (startDate) {
-            adjustmentQuery.createdAt[Op.gte] = startDateObj;
-          }
-          
-          const relevantAdjustments = await getInventoryAdjustments(adjustmentQuery);
-          
-          relevantAdjustments.forEach(ia => {
-            const iaItem = ia.items.find(i => i.itemId && i.itemId.toString() === item._id.toString());
-            if (iaItem) {
-              const adjustmentQty = parseFloat(iaItem.quantityAdjusted) || 0;
-              stockOnHand += adjustmentQty; // Can be positive or negative
-              console.log(`  ${adjustmentQty >= 0 ? '➕' : '➖'} Adjusted by ${Math.abs(adjustmentQty)} from inventory adjustment during period`);
-            }
-          });
-        } catch (error) {
-          console.log(`Warning: Could not fetch inventory adjustments for item ${item.itemName}:`, error.message);
+        for (const r of (salesByItem.get(itemId) || [])) {
+          if (wsMatch(r.warehouse) && r.date >= startDateObj && r.date <= endDateObj) stockOut += r.qty;
         }
-        
-        // Calculate stock movements within the selected period
-        let stockIn = 0; // Stock added during the period
-        let stockOut = 0; // Stock sold during the period
-        
-        // Calculate Stock In (additions during the period)
-        try {
-          console.log(`🔍 Calculating Stock In for ${item.itemName} from ${startDateObj.toLocaleDateString()} to ${endDateObj.toLocaleDateString()}`);
-          
-          // If item was created during the period, count the original opening stock as Stock In
-          const itemCreationDate = new Date(item.createdAt || '2020-01-01');
-          if (itemCreationDate >= startDateObj && itemCreationDate <= endDateObj) {
-            const originalOpeningStock = parseFloat(warehouseStock.openingStock) || 0;
-            if (originalOpeningStock > 0) {
-              stockIn += originalOpeningStock;
-              console.log(`  ➕ Added ${originalOpeningStock} from item creation during period`);
-            }
-          }
-          
-          // Stock from purchase receives within the period
-          const purchaseReceivesInPeriod = await PurchaseReceive.find({
-            'items.itemId': item._id,
-            status: 'received',
-            toWarehouse: warehouseName,
-            createdAt: { 
-              $gte: startDateObj,
-              $lte: endDateObj 
-            }
-          });
-          
-          console.log(`📦 Found ${purchaseReceivesInPeriod.length} purchase receives in period`);
-          
-          purchaseReceivesInPeriod.forEach(pr => {
-            const prItem = pr.items.find(i => i.itemId.toString() === item._id.toString());
-            if (prItem) {
-              const qty = parseFloat(prItem.receivedQuantity) || parseFloat(prItem.quantity) || parseFloat(prItem.received) || 0;
-              stockIn += qty;
-              console.log(`  ➕ Added ${qty} from purchase receive`);
-            }
-          });
-          
-          // Stock from transfer orders received within the period
-          const transferOrdersReceivedInPeriod = await TransferOrder.find({
-            'items.itemId': item._id,
-            status: 'completed',
-            destinationWarehouse: warehouseName,
-            createdAt: { 
-              $gte: startDateObj,
-              $lte: endDateObj 
-            }
-          });
-          
-          console.log(`🔄 Found ${transferOrdersReceivedInPeriod.length} transfer orders received in period`);
-          
-          transferOrdersReceivedInPeriod.forEach(to => {
-            const toItem = to.items.find(i => i.itemId.toString() === item._id.toString());
-            if (toItem) {
-              const qty = parseFloat(toItem.quantity) || 0;
-              stockIn += qty;
-              console.log(`  ➕ Added ${qty} from transfer in`);
-            }
-          });
-          
-          // Positive inventory adjustments within the period
-          const relevantPositiveAdjustments = await getInventoryAdjustments({
-            warehouse: warehouseName,
-            status: 'adjusted',
-            createdAt: { 
-              [Op.gte]: startDateObj,
-              [Op.lte]: endDateObj 
-            },
-            itemId: item._id.toString()
-          });
-          
-          console.log(`📊 Found ${relevantPositiveAdjustments.length} inventory adjustments in period`);
-          
-          relevantPositiveAdjustments.forEach(ia => {
-            const iaItem = ia.items.find(i => i.itemId && i.itemId.toString() === item._id.toString());
-            if (iaItem) {
-              const adjustmentQty = parseFloat(iaItem.quantityAdjusted) || 0;
-              if (adjustmentQty > 0) {
-                stockIn += adjustmentQty;
-                console.log(`  ➕ Added ${adjustmentQty} from positive adjustment`);
-              }
-            }
-          });
-          
-          console.log(`📊 Total Stock In for ${item.itemName}: ${stockIn}`);
-        } catch (error) {
-          console.log(`Warning: Could not calculate stock in for item ${item.itemName}:`, error.message);
-        }
-        
-        // Calculate Stock Out (reductions during the period)
-        try {
-          // Stock sold via sales invoices within the period
-          const salesInvoicesInPeriod = await SalesInvoice.find({
-            $or: [
-              { 'items.itemId': item._id },
-              { 'lineItems.itemData._id': item._id.toString() }
-            ],
-            warehouse: warehouseName,
-            createdAt: { 
-              $gte: startDateObj,
-              $lte: endDateObj 
-            }
-          });
-          
-          // Also try with warehouse variations to catch any naming mismatches
-          const warehouseVariations = getWarehouseNameVariations(warehouseName);
-          const salesInvoicesWithVariations = await SalesInvoice.find({
-            $or: [
-              { 'items.itemId': item._id },
-              { 'lineItems.itemData._id': item._id.toString() }
-            ],
-            warehouse: { $in: warehouseVariations },
-            createdAt: { 
-              $gte: startDateObj,
-              $lte: endDateObj 
-            }
-          });
-          
-          console.log(`🔍 Debug for item "${item.itemName}" in warehouse "${warehouseName}":`, {
-            itemId: item._id,
-            startDate: startDateObj,
-            endDate: endDateObj,
-            warehouseVariations: warehouseVariations,
-            foundInvoicesExact: salesInvoicesInPeriod.length,
-            foundInvoicesWithVariations: salesInvoicesWithVariations.length
-          });
-          
-          if (salesInvoicesWithVariations.length > 0) {
-            console.log(`📋 Found ${salesInvoicesWithVariations.length} sales invoices (with variations) for item "${item.itemName}":`, 
-              salesInvoicesWithVariations.map(si => ({
-                invoiceId: si._id,
-                warehouse: si.warehouse,
-                createdAt: si.createdAt,
-                items: getInvoiceItems(si).filter(i => i.itemId.toString() === item._id.toString())
-              }))
-            );
-          }
-          
-          // Use the broader search with variations
-          salesInvoicesWithVariations.forEach(si => {
-            const invoiceItems = getInvoiceItems(si);
-            const siItem = invoiceItems.find(i => i.itemId.toString() === item._id.toString());
-            if (siItem) {
-              const qty = parseFloat(siItem.quantity) || 0;
-              stockOut += qty;
-              console.log(`📤 Adding ${qty} to stock out for item "${item.itemName}" from invoice ${si._id} (warehouse: ${si.warehouse})`);
-            }
-          });
-          
-          // Stock sent via transfer orders within the period
-          const transferOrdersSentInPeriod = await TransferOrder.find({
-            'items.itemId': item._id,
-            status: 'completed',
-            sourceWarehouse: warehouseName,
-            createdAt: { 
-              $gte: startDateObj,
-              $lte: endDateObj 
-            }
-          });
-          
-          transferOrdersSentInPeriod.forEach(to => {
-            const toItem = to.items.find(i => i.itemId.toString() === item._id.toString());
-            if (toItem) {
-              stockOut += parseFloat(toItem.quantity) || 0;
-            }
-          });
-          
-          // Negative inventory adjustments within the period
-          const relevantNegativeAdjustments = await getInventoryAdjustments({
-            warehouse: warehouseName,
-            status: 'adjusted',
-            createdAt: { 
-              [Op.gte]: startDateObj,
-              [Op.lte]: endDateObj 
-            },
-            itemId: item._id.toString()
-          });
-          
-          relevantNegativeAdjustments.forEach(ia => {
-            const iaItem = ia.items.find(i => i.itemId && i.itemId.toString() === item._id.toString());
-            if (iaItem) {
-              const adjustmentQty = parseFloat(iaItem.quantityAdjusted) || 0;
-              if (adjustmentQty < 0) {
-                stockOut += Math.abs(adjustmentQty);
-              }
-            }
-          });
-        } catch (error) {
-          console.log(`Warning: Could not calculate stock out for item ${item.itemName}:`, error.message);
-        }
-        
-        // If no movements found and we have opening stock, closing stock should equal opening stock
-        if (stockIn === 0 && stockOut === 0 && openingStock > 0) {
-          stockOnHand = openingStock;
-          console.log(`📊 No movements found, setting closing stock equal to opening stock: ${stockOnHand}`);
-        }
-        
-        // Calculate stock value
+
+        const closingStock = Math.max(0, openingStock + stockIn - stockOut);
         const itemCost = parseFloat(item.costPrice) || 0;
-        const closingStock = Math.max(0, stockOnHand); // Ensure non-negative
         const stockValue = closingStock * itemCost;
-        
-        // Only include items with stock > 0 or movements during the period or if showing all
-        // Also include items that have warehouse stock entries even if all values are 0 (for debugging)
+
         const hasWarehouseEntry = warehouseStocksToProcess.length > 0;
-        const shouldInclude = closingStock > 0 || stockIn > 0 || stockOut > 0 || openingStock > 0 || warehouse === "Warehouse" || warehouse === "All Stores" || hasWarehouseEntry;
-        
-        console.log(`  📊 Stock calculation for ${item.itemName || item.name}:`);
-        console.log(`    Opening: ${openingStock}, In: ${stockIn}, Out: ${stockOut}, Closing: ${closingStock}`);
-        console.log(`    Should include: ${shouldInclude} (hasWarehouseEntry: ${hasWarehouseEntry})`);
-        
+        const shouldInclude = closingStock > 0 || stockIn > 0 || stockOut > 0 || openingStock > 0 || hasWarehouseEntry;
+
         if (shouldInclude) {
           stockOnHandData.push({
             itemId: item._id,
@@ -2084,26 +1601,21 @@ export const getStockOnHandReport = async (req, res) => {
             sku: item.sku,
             category: item.category,
             warehouse: warehouseName,
-            openingStock: Math.max(0, openingStock), // Stock at start of period
-            stockIn: stockIn, // Stock added during period
-            stockOut: stockOut, // Stock sold during period
-            closingStock: closingStock, // Stock at end of period
+            openingStock,
+            stockIn,
+            stockOut,
+            closingStock,
             costPrice: itemCost,
-            stockValue: Math.max(0, stockValue), // Ensure non-negative
+            stockValue: Math.max(0, stockValue),
             itemGroupId: item.itemGroupId || null,
             itemGroupName: item.itemGroupName || null,
             isFromGroup: item.isFromGroup || false
           });
-          
           totalStockOnHand += closingStock;
           totalStockValue += Math.max(0, stockValue);
           totalStockIn += stockIn;
           totalStockOut += stockOut;
-          totalOpeningStock += Math.max(0, openingStock);
-          
-          console.log(`    ✅ INCLUDED in report`);
-        } else {
-          console.log(`    ❌ EXCLUDED from report`);
+          totalOpeningStock += openingStock;
         }
       }
     }
