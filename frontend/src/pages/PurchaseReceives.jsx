@@ -36,55 +36,47 @@ const PurchaseReceives = () => {
           return;
         }
 
-        const params = new URLSearchParams({
-          userId: userId,
-        });
+        const adminEmails = ['officerootments@gmail.com'];
+        const isAdminEmail = adminEmails.some(e => userId.toLowerCase() === e.toLowerCase());
+        const isAdmin = isAdminEmail ||
+          (userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin')) ||
+          (user?.locCode && (String(user.locCode) === '858' || String(user.locCode) === '103'));
+
+        const params = new URLSearchParams({ userId });
         if (userPower) params.append("userPower", userPower);
         if (user?.locCode) params.append("locCode", user.locCode);
-        
-        // Add warehouse parameter for filtering
-        const fallbackLocations = [
-          { "locName": "Z-Edapally1", "locCode": "144" },
-          { "locName": "Warehouse", "locCode": "858" },
-          { "locName": "G-Edappally", "locCode": "702" },
-          { "locName": "HEAD OFFICE01", "locCode": "759" },
-          { "locName": "SG-Trivandrum", "locCode": "700" },
-          { "locName": "Z- Edappal", "locCode": "100" },
-          { "locName": "Z.Perinthalmanna", "locCode": "133" },
-          { "locName": "Z.Kottakkal", "locCode": "122" },
-          { "locName": "G.Kottayam", "locCode": "701" },
-          { "locName": "G.Perumbavoor", "locCode": "703" },
-          { "locName": "G.Thrissur", "locCode": "704" },
-          { "locName": "G.Chavakkad", "locCode": "706" },
-          { "locName": "G.Calicut ", "locCode": "712" },
-          { "locName": "G.Vadakara", "locCode": "708" },
-          { "locName": "G.Edappal", "locCode": "707" },
-          { "locName": "G.Perinthalmanna", "locCode": "709" },
-          { "locName": "G.Kottakkal", "locCode": "711" },
-          { "locName": "G.Manjeri", "locCode": "710" },
-          { "locName": "G.Palakkad ", "locCode": "705" },
-          { "locName": "G.Kalpetta", "locCode": "717" },
-          { "locName": "G.Kannur", "locCode": "716" },
-          { "locName": "G.Mg Road", "locCode": "718" },
-          { "locName": "Production", "locCode": "101" },
-          { "locName": "Office", "locCode": "102" },
-          { "locName": "WAREHOUSE", "locCode": "103" }
-        ];
-        
-        let userLocName = "";
-        if (user?.locCode) {
-          const location = fallbackLocations.find(loc => loc.locCode === user.locCode || loc.locCode === String(user.locCode));
-          if (location) {
-            userLocName = location.locName;
-          }
-        }
-        if (!userLocName) {
-          userLocName = user?.username || user?.locName || "";
-        }
-        
-        const userWarehouse = mapWarehouse(userLocName);
-        if (userWarehouse) {
-          params.append("warehouse", userWarehouse);
+
+        // Only send warehouse filter for non-admin users
+        if (!isAdmin) {
+          const fallbackLocations = [
+            { locName: "Warehouse", locCode: "858" },
+            { locName: "G-Edappally", locCode: "702" },
+            { locName: "HEAD OFFICE01", locCode: "759" },
+            { locName: "SG-Trivandrum", locCode: "700" },
+            { locName: "Z-Edapally", locCode: "144" },
+            { locName: "Z-Edappal", locCode: "100" },
+            { locName: "Z-Perinthalmanna", locCode: "133" },
+            { locName: "Z-Kottakkal", locCode: "122" },
+            { locName: "G-Kottayam", locCode: "701" },
+            { locName: "G-Perumbavoor", locCode: "703" },
+            { locName: "G-Thrissur", locCode: "704" },
+            { locName: "G-Chavakkad", locCode: "706" },
+            { locName: "G-Calicut", locCode: "712" },
+            { locName: "G-Vadakara", locCode: "708" },
+            { locName: "G-Edappal", locCode: "707" },
+            { locName: "G-Perinthalmanna", locCode: "709" },
+            { locName: "G-Kottakkal", locCode: "711" },
+            { locName: "G-Manjeri", locCode: "710" },
+            { locName: "G-Palakkad", locCode: "705" },
+            { locName: "G-Kalpetta", locCode: "717" },
+            { locName: "G-Kannur", locCode: "716" },
+            { locName: "G-Mg Road", locCode: "718" },
+            { locName: "Production", locCode: "101" },
+            { locName: "Office", locCode: "102" },
+          ];
+          const loc = fallbackLocations.find(l => l.locCode === String(user?.locCode));
+          const userWarehouse = mapWarehouse(loc?.locName || user?.locName || "");
+          if (userWarehouse) params.append("warehouse", userWarehouse);
         }
         
         const response = await fetch(`${API_URL}/api/purchase/receives?${params.toString()}`);

@@ -1068,15 +1068,16 @@ export const getPurchaseReceives = async (req, res) => {
                     (userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin')) ||
                     (locCode && (locCode === '858' || locCode === '103')); // 858 = Warehouse, 103 = WAREHOUSE
     
-    // If admin has switched to a specific store (not Warehouse), filter by that store
-    const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "All Stores";
+    // Admin viewing a specific branch store (not Warehouse/admin home)
+    const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "All Stores" && warehouse !== "Warehouse";
     
     if ((!isAdmin || isAdminViewingSpecificStore) && warehouse) {
-      // Check warehouse, branch, or locCode fields for compatibility with old receives
+      // toWarehouse stores the warehouse name; also check locCode for older records
       query.$or = [
+        { toWarehouse: warehouse },
         { warehouse: warehouse },
         { branch: warehouse },
-        { locCode: warehouse }
+        ...(locCode ? [{ locCode: locCode }] : [])
       ];
       console.log(`📦 Filtering purchase receives for warehouse: ${warehouse}`);
     } else if (!isAdmin && userId) {
