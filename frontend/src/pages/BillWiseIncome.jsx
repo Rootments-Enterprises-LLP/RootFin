@@ -449,7 +449,7 @@ const DayBookInc = () => {
             locCode: currentusers.locCode,
             date: transaction.date ? transaction.date.split("T")[0] : transaction.date,
             Category: inferType(transaction),
-            SubCategory: transaction.category || transaction.subCategory || transaction.SubCategory,
+            SubCategory: transaction.subCategory || transaction.SubCategory || transaction.category,
             invoiceNo: transaction.invoiceNo || transaction.invoiceNumber || transaction.invoiceId || transaction.locCode,
             customerName: transaction.customerName || transaction.customer || transaction.custName || "",
             cash1: transaction.cash,
@@ -463,7 +463,7 @@ const DayBookInc = () => {
             upi: transaction.upi !== undefined ? transaction.upi : transaction.Tupi,
             amount: transaction.amount || 0,
             totalTransaction: transaction.totalTransaction || (parseInt(transaction.cash || 0) + parseInt(transaction.bank || 0) + parseInt(transaction.upi || 0) + parseInt(transaction.rbl || transaction.rblRazorPay || 0)),
-            remark: transaction.remark || transaction.remarks || ""
+            remark: transaction.subCategory || transaction.SubCategory || transaction.category || transaction.remark || transaction.remarks || ""
         }));
 
         return {

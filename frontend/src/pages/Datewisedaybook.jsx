@@ -920,7 +920,8 @@ const Datewisedaybook = () => {
     locCode: currentusers.locCode,
     date: transaction.date.split("T")[0],
     Category: transaction.type,
-    SubCategory: transaction.category,
+    SubCategory: transaction.subCategory || transaction.SubCategory || transaction.category,
+    remark: transaction.subCategory || transaction.SubCategory || transaction.category || "",
     billValue: Number(
       transaction.billValue ??
       transaction.invoiceAmount ??

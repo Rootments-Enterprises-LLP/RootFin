@@ -216,10 +216,6 @@ export const GetPayment = async (req, res) => {
         console.log(`   DateFrom: "${DateFrom}"`);
         console.log(`   DateTo: "${DateTo}"`);
 
-        if (!LocCode) {
-            return res.status(400).json({ message: "'LocCode' is required" });
-        }
-
         if (!DateFrom || !DateTo) {
             return res.status(400).json({ message: "Both 'DateFrom' and 'DateTo' are required" });
         }
@@ -234,11 +230,14 @@ export const GetPayment = async (req, res) => {
         console.log(`   Parsed fromDate: ${fromDate.toISOString()}`);
         console.log(`   Parsed toDate: ${toDate.toISOString()}`);
 
+        // Build query — if LocCode is "all" or omitted, fetch all stores
+        const query = { date: { $gte: fromDate, $lte: toDate } };
+        if (LocCode && LocCode !== "all") {
+            query.locCode = String(LocCode);
+        }
+
         // Query transactions based on LocCode and Date Range
-        const transactions = await Transaction.find({
-             locCode: String(req.query.LocCode), // Match location code
-            date: { $gte: fromDate, $lte: toDate }, // Match date range
-        })
+        const transactions = await Transaction.find(query)
         .sort({ date: -1 })
         .allowDiskUse(true);
 
