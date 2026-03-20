@@ -4,10 +4,7 @@ import fs from 'fs';
 
 // 🔁 Load correct .env file based on env
 const env = process.env.NODE_ENV || 'development';
-const envFile = `.env.${env}`;
-if (fs.existsSync(envFile)) {
-  dotenv.config({ path: envFile });
-}
+dotenv.config(); // ALWAYS load .env
 
 // Get PostgreSQL connection details from environment variables
 const getPostgresConfig = () => {
