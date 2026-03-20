@@ -1,10 +1,11 @@
-import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
+dotenv.config(); // 🔥 MUST BE FIRST - Load .env before reading any env variables
+
+import { Sequelize } from 'sequelize';
 import fs from 'fs';
 
-// 🔁 Load correct .env file based on env
+// NOW read NODE_ENV (after .env is loaded)
 const env = process.env.NODE_ENV || 'development';
-dotenv.config(); // ALWAYS load .env
 
 // Get PostgreSQL connection details from environment variables
 const getPostgresConfig = () => {
