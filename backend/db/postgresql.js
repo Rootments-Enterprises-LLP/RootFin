@@ -43,9 +43,14 @@ const getPostgresConfig = () => {
 // Alternative: Use connection URI if provided
 const getConnectionUri = () => {
   if (env === 'production') {
-    return process.env.POSTGRES_URI_PROD || process.env.DATABASE_URL;
+    const uri = process.env.POSTGRES_URI_PROD || process.env.DATABASE_URL;
+    // Reject placeholder values
+    if (uri && uri.includes('[')) return null;
+    return uri || null;
   } else {
-    return process.env.POSTGRES_URI_DEV || process.env.DATABASE_URL;
+    const uri = process.env.POSTGRES_URI_DEV;
+    if (uri && uri.includes('[')) return null;
+    return uri || null;
   }
 };
 
