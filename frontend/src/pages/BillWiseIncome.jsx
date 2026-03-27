@@ -76,7 +76,7 @@ const denominations = [
 const DayBookInc = () => {
 
     const [preOpen, setPreOpen] = useState([])
-    const [preOpen1, setPreOpen1] = useState([])
+    const [preOpen1, setPreOpen1] = useState(null)
     const [loading, setLoading] = useState(false)
     
     // Edit functionality states
@@ -636,9 +636,11 @@ const DayBookInc = () => {
 
 
 
-        // alert(savedData.totalAmount)
         if (savedData.totalAmount === 0) {
-            return alert('You have entered 0 as cash. If cash is missing, please inform the Rootments office.')
+            const confirmed = window.confirm(
+                'Physical cash count is 0. Are you sure you want to close the day with zero cash? Click OK to proceed or Cancel to go back and enter the denomination count.'
+            );
+            if (!confirmed) return;
         }
         setLoading(true)
         try {
@@ -1723,13 +1725,13 @@ const DayBookInc = () => {
                                             
                                             <div className='flex flex-wrap gap-2 mt-4'>
                                                 {loading ? (
-                                                    !preOpen1?.cash && (
+                                                    preOpen1 == null && (
                                                         <button className="w-full sm:w-auto flex-1 cursor-pointer bg-yellow-400 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-yellow-500 transition-colors no-print">
                                                             <span>🔃 Loading...!</span>
                                                         </button>
                                                     )
                                                 ) : (
-                                                    !preOpen1?.cash && (
+                                                    preOpen1 == null && (
                                                         <button 
                                                             onClick={CreateCashBank} 
                                                             className="w-full sm:w-auto flex-1 cursor-pointer bg-yellow-400 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-yellow-500 transition-colors no-print"
@@ -1738,7 +1740,7 @@ const DayBookInc = () => {
                                                         </button>
                                                     )
                                                 )}
-                                                {!loading && preOpen1?.cash && (
+                                                {!loading && preOpen1 != null && (
                                                     <button 
                                                         onClick={handlePrint} 
                                                         className="w-full sm:w-auto flex-1 cursor-pointer bg-blue-600 text-white py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors no-print"
