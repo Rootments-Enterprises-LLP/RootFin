@@ -291,14 +291,19 @@ const Datewisedaybook = () => {
         const rbl = Number(tx.rbl || tx.rblRazorPay || 0); // ✅ Added RBL mapping
         const bank = Number(tx.bank || 0);
         const upi = Number(tx.upi || 0);
+        const isReturn = (tx.type || "").toLowerCase() === "return";
+        const rawSubCat = tx.subCategory || tx.category || "";
+        const subCatLabel = isReturn && rawSubCat && !rawSubCat.toLowerCase().endsWith("return")
+          ? `${rawSubCat} Return`
+          : rawSubCat;
         return {
           ...tx,
           date: tx.date?.split("T")[0] || "",
           Category: tx.type,
-          SubCategory: tx.subCategory || tx.category, // ✅ Use subCategory first (shoe sales, shirt sales), fallback to category
+          SubCategory: subCatLabel,
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",
-          remark: tx.subCategory || tx.SubCategory || tx.category || tx.remark || tx.remarks || "",
+          remark: subCatLabel || tx.remark || tx.remarks || "",
           billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
           cash: Number(tx.cash),
           rbl: rbl, // ✅ Added RBL
@@ -554,14 +559,19 @@ const Datewisedaybook = () => {
         const bank = Number(tx.bank || 0);
         const upi = Number(tx.upi || 0);
         const total = cash + rbl + bank + upi; // ✅ Added rbl
+        const isReturn = (tx.type || "").toLowerCase() === "return";
+        const rawSubCat = tx.subCategory || tx.category || "";
+        const subCatLabel = isReturn && rawSubCat && !rawSubCat.toLowerCase().endsWith("return")
+          ? `${rawSubCat} Return`
+          : rawSubCat;
         return {
           ...tx,
           date: tx.date?.split("T")[0] || "",
           Category: tx.type,
-          SubCategory: tx.subCategory || tx.category, // ✅ Use subCategory first (shoe sales, shirt sales), fallback to category
+          SubCategory: subCatLabel,
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",
-          remark: tx.subCategory || tx.SubCategory || tx.category || tx.remark || tx.remarks || "",
+          remark: subCatLabel || tx.remark || tx.remarks || "",
           discountAmount: Number(tx.discountAmount || 0),
           billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
           cash: Number(tx.cash),
@@ -917,13 +927,19 @@ const Datewisedaybook = () => {
   });
 
   // ✅ Updated mongo transactions with RBL
-  const Transactionsall = (mongoTransactions || []).map(transaction => ({
+  const Transactionsall = (mongoTransactions || []).map(transaction => {
+    const isReturn = (transaction.type || "").toLowerCase() === "return";
+    const rawSubCat = transaction.subCategory || transaction.SubCategory || transaction.category || "";
+    const subCatLabel = isReturn && rawSubCat && !rawSubCat.toLowerCase().endsWith("return")
+      ? `${rawSubCat} Return`
+      : rawSubCat;
+    return {
     ...transaction,
     locCode: currentusers.locCode,
     date: transaction.date.split("T")[0],
     Category: transaction.type,
-    SubCategory: transaction.subCategory || transaction.SubCategory || transaction.category,
-    remark: transaction.subCategory || transaction.SubCategory || transaction.category || transaction.remark || transaction.remarks || "",
+    SubCategory: subCatLabel,
+    remark: subCatLabel || transaction.remark || transaction.remarks || "",
     billValue: Number(
       transaction.billValue ??
       transaction.invoiceAmount ??
@@ -938,7 +954,8 @@ const Datewisedaybook = () => {
     cash1: Number(transaction.cash),
     bank1: Number(transaction.bank),
     Tupi: Number(transaction.upi),
-  }));
+  };
+  });
 
   // ✅ Updated cancel transactions with RBL prevention logic
   const canCelTransactions = (data4?.dataSet?.data || []).map(transaction => {

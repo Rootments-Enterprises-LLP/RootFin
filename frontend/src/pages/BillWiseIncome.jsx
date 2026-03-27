@@ -444,12 +444,18 @@ const DayBookInc = () => {
         const mongoTransactions = (dayBookData || []).filter(transaction => {
             const cat = (transaction.category || transaction.Category || "").toLowerCase();
             return allowedMongoCategories.includes(cat);
-        }).map(transaction => ({
+        }).map(transaction => {
+            const isReturn = (transaction.type || "").toLowerCase() === "return";
+            const rawSubCat = transaction.subCategory || transaction.SubCategory || transaction.category || "";
+            const subCatLabel = isReturn && rawSubCat && !rawSubCat.toLowerCase().endsWith("return")
+                ? `${rawSubCat} Return`
+                : rawSubCat;
+            return {
             ...transaction,
             locCode: currentusers.locCode,
             date: transaction.date ? transaction.date.split("T")[0] : transaction.date,
             Category: inferType(transaction),
-            SubCategory: transaction.subCategory || transaction.SubCategory || transaction.category,
+            SubCategory: subCatLabel,
             invoiceNo: transaction.invoiceNo || transaction.invoiceNumber || transaction.invoiceId || transaction.locCode,
             customerName: transaction.customerName || transaction.customer || transaction.custName || "",
             cash1: transaction.cash,
@@ -463,8 +469,8 @@ const DayBookInc = () => {
             upi: transaction.upi !== undefined ? transaction.upi : transaction.Tupi,
             amount: transaction.amount || 0,
             totalTransaction: transaction.totalTransaction || (parseInt(transaction.cash || 0) + parseInt(transaction.bank || 0) + parseInt(transaction.upi || 0) + parseInt(transaction.rbl || transaction.rblRazorPay || 0)),
-            remark: transaction.subCategory || transaction.SubCategory || transaction.category || transaction.remark || transaction.remarks || ""
-        }));
+            remark: subCatLabel || transaction.remark || transaction.remarks || ""
+        };});
 
         return {
             booking: bookingTransactions,
