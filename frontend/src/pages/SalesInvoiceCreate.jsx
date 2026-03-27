@@ -1748,6 +1748,12 @@ const SalesInvoiceCreate = () => {
       return;
     }
 
+    // Validate payment method is selected
+    if (!isSplitPayment && (!paymentMethod || paymentMethod.length === 0)) {
+      showStockAlert("Please select a payment method", 'error');
+      return;
+    }
+
     // Validate that all line items have required data
     const invalidItems = lineItems.filter(item => !item.item || !item.quantity || parseFloat(item.quantity) <= 0);
     if (invalidItems.length > 0) {

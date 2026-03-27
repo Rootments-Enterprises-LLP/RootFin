@@ -123,19 +123,30 @@ export default function IncomeExpenseReport() {
   const allCategories = [...new Set(rows.map((t) => t.category || "Uncategorized"))];
   const toggleExpand = (key) => setExpanded((p) => ({ ...p, [key]: !p[key] }));
 
+  const getBranchName = (locCode) => {
+    if (!locCode) return "-";
+    const store = STORE_LIST.find((s) => s.locCode === String(locCode));
+    return store ? store.locName : locCode;
+  };
+
   const renderCategoryRows = (grouped, typeLabel, isIncome) =>
     Object.keys(grouped).map((cat) => {
       const g = grouped[cat];
       const rowTotal = g.cash + g.bank + g.upi;
       const key = `${typeLabel}-${cat}`;
       const isExp = !!expanded[key];
+
+      // Collect unique branches for this category group
+      const branches = [...new Set(g.transactions.map((t) => getBranchName(t.locCode)).filter(Boolean))];
+      const branchLabel = branches.length > 0 ? branches.join(", ") : "-";
+
       return [
         <tr key={key} className="cursor-pointer hover:brightness-95" style={{ background: "#e8d5f5" }} onClick={() => toggleExpand(key)}>
           <td className="px-3 py-2 text-center w-10">
             <TriangleDown />
           </td>
           <td className="px-3 py-2 text-sm text-gray-700">{cat}</td>
-          <td className="px-3 py-2 text-sm font-bold text-gray-800">{typeLabel.toUpperCase()}</td>
+          <td className="px-3 py-2 text-sm text-gray-600">{branchLabel}</td>
           <td className="px-3 py-2 text-right text-sm font-semibold text-gray-800">
             {g.cash !== 0 ? (isIncome ? fmt(g.cash) : `-${fmt(Math.abs(g.cash))}`) : "-"}
           </td>
@@ -160,7 +171,7 @@ export default function IncomeExpenseReport() {
             <tr key={`${key}-${i}`} style={{ background: "#f3e8ff" }}>
               <td className="px-3 py-2 text-xs text-gray-500">{dateStr}</td>
               <td className="px-3 py-2 text-xs text-gray-600">{t.remark || "-"}</td>
-              <td className="px-3 py-2"></td>
+              <td className="px-3 py-2 text-xs text-gray-500">{getBranchName(t.locCode)}</td>
               <td className="px-3 py-2 text-right text-xs text-gray-700">{tCash !== 0 ? fmt(tCash) : "-"}</td>
               <td className="px-3 py-2 text-right text-xs text-gray-700">{tBank !== 0 ? fmt(tBank) : "-"}</td>
               <td className="px-3 py-2 text-right text-xs text-gray-700">{tUpi  !== 0 ? fmt(tUpi)  : "-"}</td>
@@ -228,7 +239,7 @@ export default function IncomeExpenseReport() {
             <tr className="bg-[#f8fafc] border-b border-[#e6eafb]">
               <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280] w-28">Date</th>
               <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]">Category</th>
-              <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]">Type</th>
+              <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#6b7280]">Branch</th>
               <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[#6b7280]">Cash</th>
               <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[#6b7280]">Bank</th>
               <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[#6b7280]">UPI</th>

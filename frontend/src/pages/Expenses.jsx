@@ -25,7 +25,6 @@ const baseExpenseCats = [
   { value: "rent",                  label: "Rent",                   subs: ["Store Rent"] },
   { value: "asset purchase",        label: "Asset Purchase",         subs: ["Steamer", "Chairs", "Electronic Items", "Any other Furniture items"] },
   { value: "spot incentive",        label: "Incentive",              subs: ["Spot incentive", "Weekly incentive"] },
-  { value: "shoe sales return",     label: "Shosale Return",         subs: ["Shosale return"] },
   { value: "other expenses",        label: "Refund",                 subs: ["Security Refund", "Cancellation Refund", "Compensation"] },
   { value: "bulk amount transfer",  label: "Cash to Bank",           subs: ["Cash Deposit"] },
 ];
@@ -33,7 +32,7 @@ const baseExpenseCats = [
 const Expenses = () => {
   const currentusers = JSON.parse(localStorage.getItem("rootfinuser")) || {};
   const isAdmin = (currentusers.power || "").toLowerCase() === "admin";
-  const cats = isAdmin ? [...baseExpenseCats, { value: "write off", label: "Write Off", subs: [] }] : baseExpenseCats;
+  const cats = baseExpenseCats;
 
   const [selectedCategory, setSelectedCategory] = useState(cats[0]);
   const [subCategory, setSubCategory] = useState("");
