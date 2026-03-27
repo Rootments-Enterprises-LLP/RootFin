@@ -70,7 +70,10 @@ export default function IncomeExpenseReport() {
         const tp = (t.type || "").toLowerCase();
         if (tp !== "income" && tp !== "expense") return false;
         const inv = (t.invoiceNo || "").toUpperCase();
-        if (inv.startsWith("INV-") || inv.startsWith("RTN-") || inv.startsWith("RET-")) return false;
+        const sub = (t.subCategory || "").toLowerCase().trim();
+        // Allow shoe/shirt sales invoices through even if they have INV- prefix
+        const isShoeOrShirtSale = sub === "shoe sales" || sub === "shirt sales" || sub === "mixed sales";
+        if (!isShoeOrShirtSale && (inv.startsWith("INV-") || inv.startsWith("RTN-") || inv.startsWith("RET-"))) return false;
         return true;
       });
       setRows(filtered);
@@ -88,7 +91,10 @@ export default function IncomeExpenseReport() {
     rows.forEach((t) => {
       const tp = (t.type || "").toLowerCase();
       if (tp !== typeFilter) return;
-      const cat = t.category || "Uncategorized";
+      const sub = (t.subCategory || "").toLowerCase().trim();
+      const isInvoiceSale = sub === "shoe sales" || sub === "shirt sales" || sub === "mixed sales";
+      // For invoice shoe/shirt sales, use subCategory as the display label
+      const cat = isInvoiceSale ? t.subCategory : (t.category || "Uncategorized");
       if (filterCategory !== "All Categories" && filterCategory !== cat) return;
       if (!map[cat]) map[cat] = { transactions: [], cash: 0, bank: 0, upi: 0 };
       map[cat].transactions.push(t);
@@ -170,7 +176,14 @@ export default function IncomeExpenseReport() {
           return (
             <tr key={`${key}-${i}`} style={{ background: "#f3e8ff" }}>
               <td className="px-3 py-2 text-xs text-gray-500">{dateStr}</td>
-              <td className="px-3 py-2 text-xs text-gray-600">{t.remark || "-"}</td>
+              <td className="px-3 py-2 text-xs text-gray-600">{
+                (() => {
+                  const sub = (t.subCategory || "").toLowerCase().trim();
+                  const isInvoiceSale = sub === "shoe sales" || sub === "shirt sales" || sub === "mixed sales";
+                  if (isInvoiceSale && t.invoiceNo) return t.invoiceNo;
+                  return t.remark || t.customerName || "-";
+                })()
+              }</td>
               <td className="px-3 py-2 text-xs text-gray-500">{getBranchName(t.locCode)}</td>
               <td className="px-3 py-2 text-right text-xs text-gray-700">{tCash !== 0 ? fmt(tCash) : "-"}</td>
               <td className="px-3 py-2 text-right text-xs text-gray-700">{tBank !== 0 ? fmt(tBank) : "-"}</td>
