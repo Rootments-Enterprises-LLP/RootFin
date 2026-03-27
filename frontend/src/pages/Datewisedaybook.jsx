@@ -111,6 +111,15 @@ const Datewisedaybook = () => {
   const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
 
   const showAction = (currentusers.power || "").toLowerCase() === "admin";
+  const isClusterManager = (currentusers.role || "").toLowerCase() === "cluster_manager";
+  const clusterAllowedLocCodes = currentusers.allowedLocCodes || [];
+
+  console.log("🔍 User role:", currentusers.role, "| isClusterManager:", isClusterManager, "| allowedLocCodes:", clusterAllowedLocCodes);
+
+  // For cluster managers, filter AllLoation to only their allowed stores
+  const visibleLocations = isClusterManager
+    ? AllLoation.filter(s => clusterAllowedLocCodes.includes(s.locCode))
+    : AllLoation;
 
   const [selectedStore, setSelectedStore] = useState("current");
   const [allStoresSummary, setAllStoresSummary] = useState([]);
@@ -398,7 +407,7 @@ const Datewisedaybook = () => {
     if (selectedStore === "all") {
       const tempSummary = [];
       let totalCash = 0, totalRbl = 0, totalBank = 0, totalUpi = 0; // ✅ Added totalRbl
-      for (const store of AllLoation) {
+      for (const store of visibleLocations) {
         const { locCode, locName } = store;
         const summary = await getStoreFooterTotals(locCode, fromDate, toDate);
         tempSummary.push({
@@ -1529,7 +1538,7 @@ const Datewisedaybook = () => {
                   className="border border-gray-300 py-2 px-3"
                 >
                   <option value="current">Current Store ({currentusers.locCode})</option>
-                  {((currentusers.power || '').toLowerCase() === 'admin') && (
+                  {((currentusers.power || '').toLowerCase() === 'admin' || isClusterManager) && (
                     <option value="all">All Stores (Totals)</option>
                   )}
                 </select>
