@@ -2605,6 +2605,18 @@ Customer Service Available`;
         return item;
       })
     );
+
+    // Auto-set sub category when an item is selected (outside setLineItems to ensure it always fires)
+    if (key === "item" && typeof value === 'object' && value !== null) {
+      const itemCategory = (value.category || "").toLowerCase().trim();
+      if (itemCategory === "shoe") {
+        setSubCategory("shoe sales");
+      } else if (itemCategory === "shirt") {
+        setSubCategory("shirt sales");
+      } else {
+        setSubCategory("");
+      }
+    }
   };
 
   const handleQuantityChange = (id, value) => {
@@ -3004,7 +3016,15 @@ Customer Service Available`;
       const filtered = prev.filter(item => item.itemDetails && item.itemDetails.trim() !== "");
       return [...filtered, ...newLineItems];
     });
-    
+
+    // Auto-set sub category from bulk added items
+    const categories = [...new Set(bulkScannedItems.map(s => (s.item.category || "").toLowerCase().trim()))];
+    if (categories.length === 1) {
+      if (categories[0] === "shoe") setSubCategory("shoe sales");
+      else if (categories[0] === "shirt") setSubCategory("shirt sales");
+    } else if (categories.includes("shoe") && categories.includes("shirt")) {
+      setSubCategory("mixed sales");
+    }
     console.log(`✅ Added ${newLineItems.length} items to invoice`);
     handleBulkAddClose();
   };
