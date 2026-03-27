@@ -298,6 +298,7 @@ const Datewisedaybook = () => {
           SubCategory: tx.subCategory || tx.category, // ✅ Use subCategory first (shoe sales, shirt sales), fallback to category
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",
+          remark: tx.subCategory || tx.SubCategory || tx.category || tx.remark || tx.remarks || "",
           billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
           cash: Number(tx.cash),
           rbl: rbl, // ✅ Added RBL
@@ -560,6 +561,7 @@ const Datewisedaybook = () => {
           SubCategory: tx.subCategory || tx.category, // ✅ Use subCategory first (shoe sales, shirt sales), fallback to category
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",
+          remark: tx.subCategory || tx.SubCategory || tx.category || tx.remark || tx.remarks || "",
           discountAmount: Number(tx.discountAmount || 0),
           billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
           cash: Number(tx.cash),
@@ -921,7 +923,7 @@ const Datewisedaybook = () => {
     date: transaction.date.split("T")[0],
     Category: transaction.type,
     SubCategory: transaction.subCategory || transaction.SubCategory || transaction.category,
-    remark: transaction.subCategory || transaction.SubCategory || transaction.category || "",
+    remark: transaction.subCategory || transaction.SubCategory || transaction.category || transaction.remark || transaction.remarks || "",
     billValue: Number(
       transaction.billValue ??
       transaction.invoiceAmount ??

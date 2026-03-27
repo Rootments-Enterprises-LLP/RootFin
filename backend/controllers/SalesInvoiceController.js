@@ -573,9 +573,21 @@ export const updateSalesInvoice = async (req, res) => {
     }
 
     // ✅ UPDATE CORRESPONDING FINANCIAL TRANSACTION
+    // Skip payment field updates when this is a return-triggered update (returnStatus set)
+    // to preserve the original invoice's cash/bank/upi/amount in the day book
+    const isReturnUpdate = req.body.returnStatus === "partial" || req.body.returnStatus === "full";
     try {
-      await updateFinancialTransaction(invoice);
-      console.log("✅ Financial transaction updated successfully");
+      if (isReturnUpdate) {
+        // Only update billValue to reflect remaining items; leave payment amounts untouched
+        const existingTx = await Transaction.findOne({ invoiceNo: invoice.invoiceNumber });
+        if (existingTx) {
+          await Transaction.findByIdAndUpdate(existingTx._id, { billValue: invoice.finalTotal });
+          console.log("✅ Financial transaction billValue updated (return update - payment fields preserved)");
+        }
+      } else {
+        await updateFinancialTransaction(invoice);
+        console.log("✅ Financial transaction updated successfully");
+      }
     } catch (transactionError) {
       console.error("❌ Error updating financial transaction:", transactionError);
       // Don't fail the invoice update if transaction update fails
