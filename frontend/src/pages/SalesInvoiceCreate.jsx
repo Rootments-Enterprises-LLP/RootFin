@@ -921,33 +921,28 @@ const SalesInvoiceCreate = () => {
   const getInitialBranch = () => {
     try {
       const userStr = localStorage.getItem("rootfinuser");
-      console.log("🔍 Raw user data from localStorage:", userStr);
-      
       if (userStr) {
         const user = JSON.parse(userStr);
+        
+        // Admin users should not be locked to a branch — return Warehouse so they can pick freely
+        if ((user?.power || "").toLowerCase() === "admin") {
+          return "Warehouse";
+        }
+        
         const userLocCode = user?.locCode;
-        
-        console.log("👤 Parsed user object:", user);
-        console.log("📍 User location code:", userLocCode);
-        
         if (userLocCode) {
           // Find the branch name that matches the user's location code
           for (const [branchName, locCode] of Object.entries(branchToLocCodeMap)) {
-            console.log(`🔄 Checking: ${branchName} = ${locCode} vs user ${userLocCode}`);
             if (locCode === userLocCode) {
-              console.log(`🏢 Setting initial branch based on user location: "${branchName}" (${userLocCode})`);
               return branchName;
             }
           }
-          console.log(`❌ No branch found for user location code: ${userLocCode}`);
         }
       }
     } catch (error) {
       console.error("Error getting initial branch from user location:", error);
     }
     
-    // Fallback to Warehouse if no match found
-    console.log("🏢 Falling back to Warehouse");
     return "Warehouse";
   };
   
@@ -1387,11 +1382,11 @@ const SalesInvoiceCreate = () => {
     const user = getUserInfo();
     if (!user) return { isAdmin: false, userStore: null, isStoreUser: false };
 
-    // Check if user is admin (has admin role or no specific store assigned)
-    const isAdmin = user.role === "admin" || user.role === "superadmin" || !user.storeName;
+    // Check if user is admin (has admin power or no specific store assigned)
+    const isAdmin = (user.power || "").toLowerCase() === "admin" || (user.power || "").toLowerCase() === "superadmin";
     
     // If user has a storeName, they are a store user
-    const isStoreUser = !!user.storeName && user.role !== "admin" && user.role !== "superadmin";
+    const isStoreUser = !!user.storeName && !isAdmin;
     
     return {
       isAdmin,
