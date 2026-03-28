@@ -313,7 +313,7 @@ const Datewisedaybook = () => {
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",
           remark: subCatLabel || tx.remark || tx.remarks || "",
-          billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
+          billValue: Number(tx.billValue || tx.invoiceAmount || Math.abs(Number(tx.amount) || 0)),
           cash: Number(tx.cash),
           rbl: rbl, // ✅ Added RBL
           bank: Number(tx.bank),
@@ -582,7 +582,7 @@ const Datewisedaybook = () => {
           customerName: tx.customerName || "",
           remark: subCatLabel || tx.remark || tx.remarks || "",
           discountAmount: Number(tx.discountAmount || 0),
-          billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
+          billValue: Number(tx.billValue || tx.invoiceAmount || Math.abs(Number(tx.amount) || 0)),
           cash: Number(tx.cash),
           rbl: rbl, // ✅ Added RBL
           bank: Number(tx.bank),

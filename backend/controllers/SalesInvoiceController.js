@@ -578,12 +578,10 @@ export const updateSalesInvoice = async (req, res) => {
     const isReturnUpdate = req.body.returnStatus === "partial" || req.body.returnStatus === "full";
     try {
       if (isReturnUpdate) {
-        // Only update billValue to reflect remaining items; leave payment amounts untouched
-        const existingTx = await Transaction.findOne({ invoiceNo: invoice.invoiceNumber });
-        if (existingTx) {
-          await Transaction.findByIdAndUpdate(existingTx._id, { billValue: invoice.finalTotal });
-          console.log("✅ Financial transaction billValue updated (return update - payment fields preserved)");
-        }
+        // Do NOT update billValue on the original invoice's transaction when a return is processed.
+        // The original transaction should always reflect the original sale amount collected.
+        // The return transaction (RTN-) separately records the refund amount.
+        console.log("✅ Return update detected - preserving original transaction billValue and payment amounts");
       } else {
         await updateFinancialTransaction(invoice);
         console.log("✅ Financial transaction updated successfully");

@@ -1184,7 +1184,7 @@ const SalesInvoiceDetail = () => {
                     const storedFinalTotal = parseFloat(invoice.finalTotal || 0);
 
                     const lineItems = invoice.lineItems || [];
-                    const computedSubTotal = lineItems.reduce((s, i) => s + (parseFloat(i.lineTotal || i.amount || 0)), 0);
+                    const computedSubTotal = lineItems.reduce((s, i) => s + (parseFloat(i.lineTotal) || (parseFloat(i.quantity || 0) * parseFloat(i.rate || 0))), 0);
                     const computedTotalTax = lineItems.reduce((s, i) => s + (parseFloat(i.cgstAmount || 0)) + (parseFloat(i.sgstAmount || 0)) + (parseFloat(i.igstAmount || 0)), 0);
 
                     const displaySubTotal = storedSubTotal > 0 ? storedSubTotal : computedSubTotal;

@@ -530,7 +530,7 @@ const SalesInvoices = () => {
                           {formatCurrency(
                             parseFloat(invoice.finalTotal) > 0
                               ? invoice.finalTotal
-                              : (invoice.lineItems || []).reduce((s, i) => s + parseFloat(i.lineTotal || i.amount || 0), 0)
+                              : (invoice.lineItems || []).reduce((s, i) => s + (parseFloat(i.lineTotal) || (parseFloat(i.quantity || 0) * parseFloat(i.rate || 0))), 0)
                           )}
                         </td>
                         <td className="px-4 py-4 text-right font-semibold text-[#1f2937]">
@@ -562,7 +562,7 @@ const SalesInvoices = () => {
                           Total Amount: ₹{filteredInvoices.reduce((sum, inv) => {
                             const total = parseFloat(inv.finalTotal) > 0
                               ? parseFloat(inv.finalTotal)
-                              : (inv.lineItems || []).reduce((s, i) => s + parseFloat(i.lineTotal || i.amount || 0), 0);
+                              : (inv.lineItems || []).reduce((s, i) => s + (parseFloat(i.lineTotal) || (parseFloat(i.quantity || 0) * parseFloat(i.rate || 0))), 0);
                             return sum + total;
                           }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </span>
