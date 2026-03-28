@@ -25,7 +25,7 @@ export const CloseController = async (req, res) => {
 
         console.log(bank, cash, Closecash, email, locCode, date);
 
-        if (bank === undefined || Closecash === undefined || Closecash === 0 || !locCode || !date) {
+        if (bank === undefined || Closecash === undefined || !locCode || !date) {
             return res.status(400).json({
                 message: "All fields are required",
             });
