@@ -527,7 +527,11 @@ const SalesInvoices = () => {
                           {getReturnStatusBadge(invoice.returnStatus)}
                         </td>
                         <td className="px-4 py-4 text-right font-semibold text-[#1f2937]">
-                          {formatCurrency(invoice.finalTotal)}
+                          {formatCurrency(
+                            parseFloat(invoice.finalTotal) > 0
+                              ? invoice.finalTotal
+                              : (invoice.lineItems || []).reduce((s, i) => s + parseFloat(i.lineTotal || i.amount || 0), 0)
+                          )}
                         </td>
                         <td className="px-4 py-4 text-right font-semibold text-[#1f2937]">
                           ₹0.00
@@ -555,7 +559,12 @@ const SalesInvoices = () => {
                       </div>
                       <div className="flex items-center gap-4">
                         <span>
-                          Total Amount: ₹{filteredInvoices.reduce((sum, inv) => sum + (parseFloat(inv.finalTotal) || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          Total Amount: ₹{filteredInvoices.reduce((sum, inv) => {
+                            const total = parseFloat(inv.finalTotal) > 0
+                              ? parseFloat(inv.finalTotal)
+                              : (inv.lineItems || []).reduce((s, i) => s + parseFloat(i.lineTotal || i.amount || 0), 0);
+                            return sum + total;
+                          }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
                     </div>

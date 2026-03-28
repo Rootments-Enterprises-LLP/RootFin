@@ -543,13 +543,18 @@ const SalesInvoiceDetail = () => {
             if (remainingQty <= 0) {
               return null; // Remove item completely
             }
-            // Reduce quantity and recalculate amounts
-            const baseAmount = remainingQty * (parseFloat(item.rate) || 0);
-            const cgstAmount = (baseAmount * parseFloat(item.cgstPercent || 0)) / 100;
-            const sgstAmount = (baseAmount * parseFloat(item.sgstPercent || 0)) / 100;
-            const igstAmount = (baseAmount * parseFloat(item.igstPercent || 0)) / 100;
+            // For inclusive GST: lineTotal = qty × rate (rate already includes tax)
+            const lineTotal = remainingQty * (parseFloat(item.rate) || 0);
+            const cgstPct = parseFloat(item.cgstPercent || 0);
+            const sgstPct = parseFloat(item.sgstPercent || 0);
+            const igstPct = parseFloat(item.igstPercent || 0);
+            const totalTaxPct = cgstPct + sgstPct + igstPct;
+            // Back-calculate base from inclusive total
+            const baseAmount = totalTaxPct > 0 ? lineTotal / (1 + totalTaxPct / 100) : lineTotal;
+            const cgstAmount = (baseAmount * cgstPct) / 100;
+            const sgstAmount = (baseAmount * sgstPct) / 100;
+            const igstAmount = (baseAmount * igstPct) / 100;
             const lineTaxTotal = cgstAmount + sgstAmount + igstAmount;
-            const lineTotal = baseAmount + lineTaxTotal;
             
             return {
               ...item,
@@ -569,8 +574,8 @@ const SalesInvoiceDetail = () => {
 
       // Step 2: Update original invoice with reduced quantities (if items remain)
       if (updatedLineItems.length > 0) {
-        // Calculate new totals for original invoice
-        const newSubTotal = updatedLineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+        // For inclusive GST: subTotal = sum of lineTotals (inclusive amounts)
+        const newSubTotal = updatedLineItems.reduce((sum, item) => sum + (parseFloat(item.lineTotal) || 0), 0);
         const newTotalTax = updatedLineItems.reduce(
           (sum, item) => sum + (parseFloat(item.cgstAmount) || 0) + (parseFloat(item.sgstAmount) || 0) + (parseFloat(item.igstAmount) || 0),
           0
@@ -589,8 +594,8 @@ const SalesInvoiceDetail = () => {
         const originalAdjustmentAmount = parseFloat(invoice.adjustmentAmount || 0);
         const newAdjustmentAmount = originalAdjustmentAmount * newSubTotalRatio;
         
-        // Calculate new final total: subTotal + totalTax - discount - TDS + adjustment
-        const newFinalTotal = newSubTotal + newTotalTax - newDiscountAmount - newTdsAmount + newAdjustmentAmount;
+        // For inclusive GST: finalTotal = subTotal (tax already included) - discount - TDS + adjustment
+        const newFinalTotal = newSubTotal - newDiscountAmount - newTdsAmount + newAdjustmentAmount;
 
         // Update the original invoice with reduced quantities and partial return status
         const updateResponse = await fetch(`${API_URL}/api/sales/invoices/${invoice._id}`, {
@@ -1172,25 +1177,40 @@ const SalesInvoiceDetail = () => {
 
                 {/* Right - Calculations */}
                 <div className="p-4">
+                  {(() => {
+                    // Compute from lineItems as fallback when stored totals are 0/missing
+                    const storedSubTotal = parseFloat(invoice.subTotal || 0);
+                    const storedTotalTax = parseFloat(invoice.totalTax || 0);
+                    const storedFinalTotal = parseFloat(invoice.finalTotal || 0);
+
+                    const lineItems = invoice.lineItems || [];
+                    const computedSubTotal = lineItems.reduce((s, i) => s + (parseFloat(i.lineTotal || i.amount || 0)), 0);
+                    const computedTotalTax = lineItems.reduce((s, i) => s + (parseFloat(i.cgstAmount || 0)) + (parseFloat(i.sgstAmount || 0)) + (parseFloat(i.igstAmount || 0)), 0);
+
+                    const displaySubTotal = storedSubTotal > 0 ? storedSubTotal : computedSubTotal;
+                    const displayTotalTax = storedTotalTax > 0 ? storedTotalTax : computedTotalTax;
+                    const displayFinalTotal = storedFinalTotal > 0 ? storedFinalTotal : (computedSubTotal - parseFloat(invoice.discountAmount || 0) - parseFloat(invoice.tdsTcsAmount || 0) + parseFloat(invoice.adjustmentAmount || 0));
+
+                    return (
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-[#000]">Sub Total</span>
-                      <span className="font-medium text-[#000]">{parseFloat(invoice.subTotal || 0).toFixed(2)}</span>
+                      <span className="font-medium text-[#000]">{displaySubTotal.toFixed(2)}</span>
                     </div>
                     
                     <div className="flex justify-between">
                       <span className="text-[#000]">CGST @ 2.5%</span>
-                      <span className="font-medium text-[#000]">{(parseFloat(invoice.subTotal || 0) * 0.025).toFixed(2)}</span>
+                      <span className="font-medium text-[#000]">{(displayTotalTax / 2).toFixed(2)}</span>
                     </div>
                     
                     <div className="flex justify-between">
                       <span className="text-[#000]">SGST @ 2.5%</span>
-                      <span className="font-medium text-[#000]">{(parseFloat(invoice.subTotal || 0) * 0.025).toFixed(2)}</span>
+                      <span className="font-medium text-[#000]">{(displayTotalTax / 2).toFixed(2)}</span>
                     </div>
                     
                     <div className="flex justify-between font-bold border-t border-[#000] pt-2">
                       <span className="text-[#000]">Total</span>
-                      <span className="text-[#000]">₹{parseFloat(invoice.finalTotal || 0).toFixed(2)}</span>
+                      <span className="text-[#000]">₹{displayFinalTotal.toFixed(2)}</span>
                     </div>
                     
                     {invoice.tdsTcsAmount > 0 && (
@@ -1211,9 +1231,11 @@ const SalesInvoiceDetail = () => {
                     
                     <div className="flex justify-between font-bold">
                       <span className="text-[#000]">Balance Due</span>
-                      <span className="text-[#000]">₹{parseFloat(invoice.finalTotal || 0).toFixed(2)}</span>
+                      <span className="text-[#000]">₹{displayFinalTotal.toFixed(2)}</span>
                     </div>
                   </div>
+                    );
+                  })()}
                 </div>
               </div>
 
