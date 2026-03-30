@@ -1137,6 +1137,7 @@ const Datewisedaybook = () => {
           securityAmount: isRent ? securityAmount : "",
           Balance: isRent ? balance : "",
           remark: t.remark || "",
+          discountAmount: num(t.discountAmount || 0),
           billValue: num(t.billValue || t.invoiceAmount || t.amount || amount),
           cash,
           rbl, // ✅ Added RBL to export
