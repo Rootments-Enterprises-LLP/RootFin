@@ -570,8 +570,13 @@ export const getSalesByItem = async (req, res) => {
 
           const itemSku = item.sku || item.itemSku || "";
           const itemSize = item.size || item.itemData?.size || "";
-          const itemKey = `${item.name || item.itemName || item.item || "Unknown"}_${itemSku}_${itemSize}`;
-          const itemName = item.name || item.itemName || item.item || "Unknown";
+          // Resolve item name - fall back to itemData if item.item looks like a MongoDB ObjectID
+          const isObjectId = (val) => typeof val === 'string' && /^[a-f0-9]{24}$/i.test(val);
+          const rawName = item.name || item.itemName || item.item;
+          const itemName = (rawName && !isObjectId(rawName))
+            ? rawName
+            : (item.itemData?.itemName || item.itemData?.name || "Unknown");
+          const itemKey = `${itemName}_${itemSku}_${itemSize}`;
           const quantity = parseFloat(item.quantity) || 0;
           const price = parseFloat(item.price || item.rate) || 0;
           const amount = quantity * price;
