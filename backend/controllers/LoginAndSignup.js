@@ -3,7 +3,7 @@ import User from '../model/UserModel.js';
 
 export const SignUp = async (req, res) => {
     try {
-        const { username, email, password, locCode, address, phone, gst, power } = req.body;
+        const { username, email, password, locCode, address, phone, gst, power, role, allowedLocCodes } = req.body;
         console.log(username, email, password, locCode, address, phone, gst, power);
 
         if (!password) {
@@ -28,6 +28,8 @@ export const SignUp = async (req, res) => {
             address: address || '',
             phone: phone || '',
             gst: gst || '',
+            role: role || null,
+            allowedLocCodes: role === 'cluster_manager' ? (allowedLocCodes || []) : [],
         });
 
         await newUser.save();
@@ -78,10 +80,10 @@ export const Login = async (req, res) => {
                 username: user.username,
                 power: user.power,
                 locCode: user.locCode,
-                // Store-level access control fields
-                role: user.role || (user.power === "admin" ? "admin" : "store_user"),
+                role: user.role || null,
                 storeName: user.storeName || user.username,
                 storeId: user.storeId,
+                allowedLocCodes: user.allowedLocCodes || [],
             },
         });
     } catch (error) {
@@ -134,7 +136,7 @@ export const GetAllUsers = async (req, res) => {
 export const UpdateUser = async (req, res) => {
     try {
         const { id } = req.params;
-        const { username, email, locCode, address, phone, gst, power, password } = req.body;
+        const { username, email, locCode, address, phone, gst, power, password, role, allowedLocCodes } = req.body;
 
         // Validate input
         if (!username || !email || !locCode) {
@@ -163,6 +165,8 @@ export const UpdateUser = async (req, res) => {
         user.phone = phone || '';
         user.gst = gst || '';
         user.power = power;
+        user.role = role || null;
+        user.allowedLocCodes = role === 'cluster_manager' ? (allowedLocCodes || []) : [];
 
         // Only update password if provided
         if (password && password.trim() !== '') {

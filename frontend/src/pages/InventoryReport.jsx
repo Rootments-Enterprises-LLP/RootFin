@@ -40,14 +40,26 @@ if (typeof document !== 'undefined') {
 }
 
 const InventoryReport = () => {
-  const [selectedStore, setSelectedStore] = useState("Warehouse");
+  const [selectedStore, setSelectedStore] = useState("All Stores");
   const [reportType, setReportType] = useState("summary");
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
   const [csvData, setCsvData] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [itemsPerPage, setItemsPerPage] = useState("all");
   const [agingBucketPages, setAgingBucketPages] = useState({});
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    // Default to current month
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState(() => {
+    // Default to today for stock-on-hand report
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+  const [selectedCategory, setSelectedCategory] = useState("all");
 
   const currentUser = JSON.parse(localStorage.getItem("rootfinuser"));
   const isAdmin = (currentUser?.power || "").toLowerCase() === "admin";
@@ -68,10 +80,14 @@ const InventoryReport = () => {
   useEffect(() => {
     setCurrentPage(1);
     setAgingBucketPages({});
+    // Reset category filter when changing away from stock-summary
+    if (reportType !== "stock-summary") {
+      setSelectedCategory("all");
+    }
   }, [reportType]);
 
   const storeOptions = [
-    { value: "Warehouse", label: "All Stores" },
+    { value: "All Stores", label: "All Stores" },
     { value: "858", label: "Warehouse" },
     { value: "702", label: "G-Edappally" },
     { value: "759", label: "HEAD OFFICE01" },
@@ -96,7 +112,15 @@ const InventoryReport = () => {
 
   const reportTypeOptions = [
     { value: "summary", label: "Inventory Summary" },
-    { value: "stock-summary", label: "Stock Summary" }
+    { value: "stock-summary", label: "Stock Summary" },
+    { value: "opening-stock", label: "Opening Stock Report" },
+    { value: "stock-on-hand", label: "Stock On Hand Report" }
+  ];
+
+  const categoryOptions = [
+    { value: "all", label: "All Categories" },
+    { value: "shirt", label: "Shirt Sales" },
+    { value: "shoe", label: "Shoe Sales" }
   ];
 
   const fetchReport = async () => {
@@ -114,6 +138,26 @@ const InventoryReport = () => {
         userId: currentUser?.email || currentUser?.userId,
         locCode: currentUser?.locCode
       });
+
+      // Add month parameter if it exists (for opening-stock report)
+      if (selectedMonth && reportType === "opening-stock") {
+        params.append('month', selectedMonth);
+      }
+
+      // Add date range parameters for stock-on-hand report
+      if (reportType === "stock-on-hand") {
+        if (startDate) {
+          params.append('startDate', startDate);
+        }
+        if (endDate) {
+          params.append('endDate', endDate);
+        }
+      }
+
+      // Add category parameter for stock-summary report
+      if (reportType === "stock-summary" && selectedCategory !== "all") {
+        params.append('category', selectedCategory);
+      }
 
       const response = await fetch(`${baseUrl.baseUrl}${endpoint}?${params}`);
       
@@ -166,46 +210,145 @@ const InventoryReport = () => {
         "Total Value": wh.totalValue,
         "Item Count": wh.itemCount
       }));
+    } else if (type === "opening-stock") {
+      // CSV for opening stock report - item details
+      csv = data.itemDetails?.map(item => ({
+        "Item Name": item.itemName,
+        SKU: item.sku || '',
+        Store: item.store,
+        "Opening Stock": item.openingStock,
+        "Opening Value": item.openingValue,
+        "Date Added": new Date(item.createdAt).toLocaleDateString('en-IN'),
+        Type: item.type,
+        "Group Name": item.groupName || ''
+      })) || [];
+    } else if (type === "stock-on-hand") {
+      // CSV for stock on hand report - item details
+      csv = data.itemDetails?.map(item => ({
+        "Item Name": item.itemName,
+        SKU: item.sku || '',
+        Category: item.category,
+        Warehouse: item.warehouse,
+        "Opening Stock": item.openingStock,
+        "Stock In": item.stockIn,
+        "Stock Out": item.stockOut,
+        "Closing Stock": item.closingStock,
+        "Cost Price": item.costPrice,
+        "Stock Value": item.stockValue,
+        "Group Name": item.itemGroupName || ''
+      })) || [];
     }
     setCsvData(csv);
   };
 
-  // Sort items to keep group items together
+  // Sort items to keep group items together with proper size ordering
   const sortItemsByGroup = (items) => {
     if (!items || !Array.isArray(items)) return [];
     
     // Create a copy to avoid mutating the original
     const sortedItems = [...items];
     
+    // Helper function to extract size number from item name or SKU
+    const extractSizeFromName = (itemName, sku) => {
+      // Try to extract size from SKU first (e.g., BLF6-1010 -> 6)
+      if (sku) {
+        const skuSizeMatch = sku.match(/([A-Z]+)(\d+)-/);
+        if (skuSizeMatch) {
+          return parseInt(skuSizeMatch[2]);
+        }
+      }
+      
+      // Try to extract size from item name using multiple patterns
+      if (itemName) {
+        // Pattern 1: "Item Name - Size" (e.g., "TAN LOAFER 4018 - 10" -> 10)
+        const dashSizeMatch = itemName.match(/\s-\s(\d+)$/);
+        if (dashSizeMatch) {
+          return parseInt(dashSizeMatch[1]);
+        }
+        
+        // Pattern 2: "Item Name/Size" (e.g., "Shoes Formal-1010 - Black/6" -> 6)
+        const slashSizeMatch = itemName.match(/\/(\d+)$/);
+        if (slashSizeMatch) {
+          return parseInt(slashSizeMatch[1]);
+        }
+        
+        // Pattern 3: "Item Name Size" (e.g., "TAN LOAFER 4018 10" -> 10)
+        const spaceSizeMatch = itemName.match(/\s(\d+)$/);
+        if (spaceSizeMatch) {
+          return parseInt(spaceSizeMatch[1]);
+        }
+        
+        // Pattern 4: Extract from SKU-like patterns in name (e.g., "T-AL6-4018" -> 6)
+        const skuInNameMatch = itemName.match(/[A-Z]+-[A-Z]*(\d+)-/);
+        if (skuInNameMatch) {
+          return parseInt(skuInNameMatch[1]);
+        }
+      }
+      
+      return 999; // Default for items without recognizable size
+    };
+    
     // Sort items so that:
     // 1. Items from the same group are together (grouped by itemGroupId)
-    // 2. Within each group, items are sorted by itemName
-    // 3. Standalone items (without groups) come after grouped items, sorted by itemName
+    // 2. Within each group, items are sorted by item name alphabetically, then by size numerically
+    // 3. Standalone items (without groups) come after grouped items, sorted alphabetically then by size
     sortedItems.sort((a, b) => {
       const aGroupId = a.itemGroupId || null;
       const bGroupId = b.itemGroupId || null;
       
       // If both items are from groups
       if (aGroupId && bGroupId) {
-        // If same group, sort by itemName within the group
+        // If same group, sort by item name first, then by size
         if (aGroupId === bGroupId) {
-          return (a.itemName || '').localeCompare(b.itemName || '');
+          // First sort by base item name (without size)
+          const aBaseName = (a.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
+          const bBaseName = (b.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
+          
+          if (aBaseName !== bBaseName) {
+            return aBaseName.localeCompare(bBaseName);
+          }
+          
+          // Same base name, sort by size numerically
+          const aSize = extractSizeFromName(a.itemName, a.sku);
+          const bSize = extractSizeFromName(b.itemName, b.sku);
+          return aSize - bSize;
         }
-        // Different groups - sort by group name first, then itemName
+        
+        // Different groups - sort by group name first
         const aGroupName = a.itemGroupName || '';
         const bGroupName = b.itemGroupName || '';
         if (aGroupName !== bGroupName) {
           return aGroupName.localeCompare(bGroupName);
         }
-        return (a.itemName || '').localeCompare(b.itemName || '');
+        
+        // Same group name but different IDs, sort by item name then size
+        const aBaseName = (a.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
+        const bBaseName = (b.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
+        
+        if (aBaseName !== bBaseName) {
+          return aBaseName.localeCompare(bBaseName);
+        }
+        
+        const aSize = extractSizeFromName(a.itemName, a.sku);
+        const bSize = extractSizeFromName(b.itemName, b.sku);
+        return aSize - bSize;
       }
       
       // If only one is from a group, group items come first
       if (aGroupId && !bGroupId) return -1;
       if (!aGroupId && bGroupId) return 1;
       
-      // Both are standalone items - sort by itemName
-      return (a.itemName || '').localeCompare(b.itemName || '');
+      // Both are standalone items - sort by item name alphabetically, then by size
+      const aBaseName = (a.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
+      const bBaseName = (b.itemName || '').replace(/\s-\s\d+$/, '').replace(/\/\d+$/, '').replace(/\s\d+$/, '').trim();
+      
+      if (aBaseName !== bBaseName) {
+        return aBaseName.localeCompare(bBaseName);
+      }
+      
+      const aSize = extractSizeFromName(a.itemName, a.sku);
+      const bSize = extractSizeFromName(b.itemName, b.sku);
+      return aSize - bSize;
     });
     
     return sortedItems;
@@ -218,6 +361,11 @@ const InventoryReport = () => {
     // Sort items by group first to keep group items together
     const sortedData = sortItemsByGroup(data);
     
+    // If "All" is selected, return all data
+    if (itemsPerPage === "all") {
+      return sortedData;
+    }
+    
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     return sortedData.slice(startIndex, endIndex);
@@ -225,6 +373,8 @@ const InventoryReport = () => {
 
   const getTotalPages = (data) => {
     if (!data || !Array.isArray(data)) return 1;
+    // If "All" is selected, there's only 1 page
+    if (itemsPerPage === "all") return 1;
     return Math.ceil(data.length / itemsPerPage);
   };
 
@@ -239,6 +389,12 @@ const InventoryReport = () => {
 
   const getPaginatedAgingItems = (items, bucketIdx) => {
     if (!items || !Array.isArray(items)) return [];
+    
+    // If "All" is selected, return all items
+    if (itemsPerPage === "all") {
+      return items;
+    }
+    
     const page = getAgingBucketPage(bucketIdx);
     const startIndex = (page - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
@@ -257,6 +413,8 @@ const InventoryReport = () => {
 
   const getAgingTotalPages = (items) => {
     if (!items || !Array.isArray(items)) return 1;
+    // If "All" is selected, there's only 1 page
+    if (itemsPerPage === "all") return 1;
     return Math.ceil(items.length / itemsPerPage);
   };
 
@@ -264,8 +422,8 @@ const InventoryReport = () => {
     if (!data || data.length === 0) return null;
     
     const totalPages = getTotalPages(data);
-    const startItem = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
-    const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+    const startItem = totalItems > 0 ? (itemsPerPage === "all" ? 1 : (currentPage - 1) * itemsPerPage + 1) : 0;
+    const endItem = itemsPerPage === "all" ? totalItems : Math.min(currentPage * itemsPerPage, totalItems);
 
     const getPageNumbers = () => {
       const pages = [];
@@ -317,7 +475,8 @@ const InventoryReport = () => {
               <select
                 value={itemsPerPage}
                 onChange={(e) => {
-                  setItemsPerPage(Number(e.target.value));
+                  const value = e.target.value === "all" ? "all" : Number(e.target.value);
+                  setItemsPerPage(value);
                   setCurrentPage(1);
                 }}
                 style={{
@@ -332,61 +491,65 @@ const InventoryReport = () => {
                 <option value={20}>20</option>
                 <option value={50}>50</option>
                 <option value={100}>100</option>
+                <option value="all">All</option>
               </select>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: "4px",
-                  border: "1px solid #ddd",
-                  backgroundColor: currentPage === 1 ? "#f5f5f5" : "white",
-                  color: currentPage === 1 ? "#999" : "#333",
-                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
-                  fontSize: "14px"
-                }}
-              >
-                Previous
-              </button>
-
-              {getPageNumbers().map((pageNum) => (
+            {/* Hide pagination buttons when "All" is selected */}
+            {itemsPerPage !== "all" && (
+              <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
                 <button
-                  key={pageNum}
-                  onClick={() => setCurrentPage(pageNum)}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
                   style={{
                     padding: "6px 12px",
                     borderRadius: "4px",
                     border: "1px solid #ddd",
-                    backgroundColor: currentPage === pageNum ? "#007bff" : "white",
-                    color: currentPage === pageNum ? "white" : "#333",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: currentPage === pageNum ? "bold" : "normal"
+                    backgroundColor: currentPage === 1 ? "#f5f5f5" : "white",
+                    color: currentPage === 1 ? "#999" : "#333",
+                    cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                    fontSize: "14px"
                   }}
                 >
-                  {pageNum}
+                  Previous
                 </button>
-              ))}
 
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: "4px",
-                  border: "1px solid #ddd",
-                  backgroundColor: currentPage === totalPages ? "#f5f5f5" : "white",
-                  color: currentPage === totalPages ? "#999" : "#333",
-                  cursor: currentPage === totalPages ? "not-allowed" : "pointer",
-                  fontSize: "14px"
-                }}
-              >
-                Next
-              </button>
-            </div>
+                {getPageNumbers().map((pageNum) => (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "4px",
+                      border: "1px solid #ddd",
+                      backgroundColor: currentPage === pageNum ? "#007bff" : "white",
+                      color: currentPage === pageNum ? "white" : "#333",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      fontWeight: currentPage === pageNum ? "bold" : "normal"
+                    }}
+                  >
+                    {pageNum}
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "4px",
+                    border: "1px solid #ddd",
+                    backgroundColor: currentPage === totalPages ? "#f5f5f5" : "white",
+                    color: currentPage === totalPages ? "#999" : "#333",
+                    cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                    fontSize: "14px"
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -398,8 +561,8 @@ const InventoryReport = () => {
     
     const currentBucketPage = getAgingBucketPage(bucketIdx);
     const totalPages = getAgingTotalPages(items);
-    const startItem = totalItems > 0 ? (currentBucketPage - 1) * itemsPerPage + 1 : 0;
-    const endItem = Math.min(currentBucketPage * itemsPerPage, totalItems);
+    const startItem = totalItems > 0 ? (itemsPerPage === "all" ? 1 : (currentBucketPage - 1) * itemsPerPage + 1) : 0;
+    const endItem = itemsPerPage === "all" ? totalItems : Math.min(currentBucketPage * itemsPerPage, totalItems);
 
     const getPageNumbers = () => {
       const pages = [];
@@ -445,60 +608,63 @@ const InventoryReport = () => {
             <span style={{ fontWeight: "bold", color: "#333" }}>{totalItems}</span> items
           </div>
           
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-              <button
-                onClick={() => setAgingBucketPage(bucketIdx, Math.max(1, currentBucketPage - 1))}
-                disabled={currentBucketPage === 1}
-                style={{
-                  padding: "5px 10px",
-                  borderRadius: "4px",
-                  border: "1px solid #ddd",
-                  backgroundColor: currentBucketPage === 1 ? "#f5f5f5" : "white",
-                  color: currentBucketPage === 1 ? "#999" : "#333",
-                  cursor: currentBucketPage === 1 ? "not-allowed" : "pointer",
-                  fontSize: "13px"
-                }}
-              >
-                Previous
-              </button>
-
-              {getPageNumbers().map((pageNum) => (
+          {/* Hide pagination buttons when "All" is selected */}
+          {itemsPerPage !== "all" && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
                 <button
-                  key={pageNum}
-                  onClick={() => setAgingBucketPage(bucketIdx, pageNum)}
+                  onClick={() => setAgingBucketPage(bucketIdx, Math.max(1, currentBucketPage - 1))}
+                  disabled={currentBucketPage === 1}
                   style={{
                     padding: "5px 10px",
                     borderRadius: "4px",
                     border: "1px solid #ddd",
-                    backgroundColor: currentBucketPage === pageNum ? "#007bff" : "white",
-                    color: currentBucketPage === pageNum ? "white" : "#333",
-                    cursor: "pointer",
-                    fontSize: "13px",
-                    fontWeight: currentBucketPage === pageNum ? "bold" : "normal"
+                    backgroundColor: currentBucketPage === 1 ? "#f5f5f5" : "white",
+                    color: currentBucketPage === 1 ? "#999" : "#333",
+                    cursor: currentBucketPage === 1 ? "not-allowed" : "pointer",
+                    fontSize: "13px"
                   }}
                 >
-                  {pageNum}
+                  Previous
                 </button>
-              ))}
 
-              <button
-                onClick={() => setAgingBucketPage(bucketIdx, Math.min(totalPages, currentBucketPage + 1))}
-                disabled={currentBucketPage === totalPages}
-                style={{
-                  padding: "5px 10px",
-                  borderRadius: "4px",
-                  border: "1px solid #ddd",
-                  backgroundColor: currentBucketPage === totalPages ? "#f5f5f5" : "white",
-                  color: currentBucketPage === totalPages ? "#999" : "#333",
-                  cursor: currentBucketPage === totalPages ? "not-allowed" : "pointer",
-                  fontSize: "13px"
-                }}
-              >
-                Next
-              </button>
+                {getPageNumbers().map((pageNum) => (
+                  <button
+                    key={pageNum}
+                    onClick={() => setAgingBucketPage(bucketIdx, pageNum)}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: "4px",
+                      border: "1px solid #ddd",
+                      backgroundColor: currentBucketPage === pageNum ? "#007bff" : "white",
+                      color: currentBucketPage === pageNum ? "white" : "#333",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      fontWeight: currentBucketPage === pageNum ? "bold" : "normal"
+                    }}
+                  >
+                    {pageNum}
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => setAgingBucketPage(bucketIdx, Math.min(totalPages, currentBucketPage + 1))}
+                  disabled={currentBucketPage === totalPages}
+                  style={{
+                    padding: "5px 10px",
+                    borderRadius: "4px",
+                    border: "1px solid #ddd",
+                    backgroundColor: currentBucketPage === totalPages ? "#f5f5f5" : "white",
+                    color: currentBucketPage === totalPages ? "#999" : "#333",
+                    cursor: currentBucketPage === totalPages ? "not-allowed" : "pointer",
+                    fontSize: "13px"
+                  }}
+                >
+                  Next
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     );
@@ -638,6 +804,213 @@ const InventoryReport = () => {
                 }}
               />
             </div>
+
+            {/* Category Filter - Show only for stock-summary report */}
+            {reportType === "stock-summary" && (
+              <div>
+                <label style={{ 
+                  display: "block", 
+                  marginBottom: "8px", 
+                  fontWeight: "500",
+                  color: "#495057",
+                  fontSize: "14px"
+                }}>Category</label>
+                <Select
+                  options={categoryOptions}
+                  value={categoryOptions.find(c => c.value === selectedCategory)}
+                  onChange={(opt) => setSelectedCategory(opt.value)}
+                  styles={{
+                    control: (base, state) => ({
+                      ...base,
+                      borderRadius: "8px",
+                      borderColor: state.isFocused ? "#007bff" : "#dee2e6",
+                      boxShadow: state.isFocused ? "0 0 0 2px rgba(0,123,255,0.1)" : "none",
+                      padding: "4px 8px",
+                      transition: "all 0.2s ease"
+                    })
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Month Picker - Show only for opening-stock report */}
+            {reportType === "opening-stock" && (
+              <div>
+                <label style={{ 
+                  display: "block", 
+                  marginBottom: "8px", 
+                  fontWeight: "500",
+                  color: "#495057",
+                  fontSize: "14px"
+                }}>Select Month</label>
+                <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+                  <div style={{ flex: 1 }}>
+                    <input
+                      type="month"
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "12px 16px",
+                        borderRadius: "8px",
+                        border: "1px solid #dee2e6",
+                        fontSize: "14px",
+                        transition: "all 0.2s ease"
+                      }}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = "#007bff";
+                        e.target.style.boxShadow = "0 0 0 2px rgba(0,123,255,0.1)";
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = "#dee2e6";
+                        e.target.style.boxShadow = "none";
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMonth("")}
+                    style={{
+                      padding: "12px 16px",
+                      backgroundColor: "#6c757d",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      whiteSpace: "nowrap"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = "#5a6268";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = "#6c757d";
+                    }}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div style={{ 
+                  fontSize: "12px", 
+                  color: "#6c757d", 
+                  marginTop: "4px" 
+                }}>
+                  Select a specific month (e.g., January 2026) or clear to show all data
+                </div>
+              </div>
+            )}
+
+            {/* Date Range Picker - Show only for stock-on-hand report */}
+            {reportType === "stock-on-hand" && (
+              <>
+                <div>
+                  <label style={{ 
+                    display: "block", 
+                    marginBottom: "8px", 
+                    fontWeight: "500",
+                    color: "#495057",
+                    fontSize: "14px"
+                  }}>Start Date (Optional)</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      borderRadius: "8px",
+                      border: "1px solid #dee2e6",
+                      fontSize: "14px",
+                      transition: "all 0.2s ease"
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#007bff";
+                      e.target.style.boxShadow = "0 0 0 2px rgba(0,123,255,0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "#dee2e6";
+                      e.target.style.boxShadow = "none";
+                    }}
+                  />
+                  <div style={{ 
+                    fontSize: "12px", 
+                    color: "#6c757d", 
+                    marginTop: "4px" 
+                  }}>
+                    Leave empty to calculate from beginning of time
+                  </div>
+                </div>
+                
+                <div>
+                  <label style={{ 
+                    display: "block", 
+                    marginBottom: "8px", 
+                    fontWeight: "500",
+                    color: "#495057",
+                    fontSize: "14px"
+                  }}>End Date</label>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "12px 16px",
+                          borderRadius: "8px",
+                          border: "1px solid #dee2e6",
+                          fontSize: "14px",
+                          transition: "all 0.2s ease"
+                        }}
+                        onFocus={(e) => {
+                          e.target.style.borderColor = "#007bff";
+                          e.target.style.boxShadow = "0 0 0 2px rgba(0,123,255,0.1)";
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.borderColor = "#dee2e6";
+                          e.target.style.boxShadow = "none";
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const today = new Date();
+                        setEndDate(today.toISOString().split('T')[0]);
+                      }}
+                      style={{
+                        padding: "12px 16px",
+                        backgroundColor: "#007bff",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        whiteSpace: "nowrap"
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = "#0056b3";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = "#007bff";
+                      }}
+                    >
+                      Today
+                    </button>
+                  </div>
+                  <div style={{ 
+                    fontSize: "12px", 
+                    color: "#6c757d", 
+                    marginTop: "4px" 
+                  }}>
+                    Stock will be calculated as of this date
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -1198,6 +1571,1013 @@ const InventoryReport = () => {
                   </table>
                 </div>
                 <PaginationControls totalItems={getFilteredWarehouses(reportData.warehouses)?.length || 0} data={getFilteredWarehouses(reportData.warehouses)} />
+              </>
+            )}
+
+            {reportType === "opening-stock" && (
+              <>
+                <div style={{ 
+                  marginBottom: "32px",
+                  paddingBottom: "20px",
+                  borderBottom: "2px solid #f8f9fa"
+                }}>
+                  <h2 style={{ 
+                    margin: "0 0 8px 0",
+                    fontSize: "24px",
+                    fontWeight: "600",
+                    color: "#2c3e50",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px"
+                  }}>
+                    <FiPackage style={{ color: "#28a745" }} />
+                    Opening Stock Report
+                  </h2>
+                  <p style={{ 
+                    margin: 0,
+                    color: "#6c757d",
+                    fontSize: "14px"
+                  }}>
+                    Track opening stock additions by month and store location. 
+                    {reportData?.summary?.period && (
+                      <span style={{ fontWeight: "500", color: "#495057" }}>
+                        {" "}Showing data for: {reportData.summary.period}
+                      </span>
+                    )}
+                  </p>
+                </div>
+
+                {/* Summary Cards */}
+                <div style={{ 
+                  display: "grid", 
+                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", 
+                  gap: "20px", 
+                  marginBottom: "40px"
+                }}>
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #e9ecef",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#6c757d", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Total Opening Stock</div>
+                    <div style={{ 
+                      fontSize: "32px", 
+                      fontWeight: "700",
+                      color: "#28a745",
+                      lineHeight: "1"
+                    }}>{reportData.summary?.totalOpeningStock || 0}</div>
+                  </div>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #e9ecef",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#6c757d", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Total Opening Value</div>
+                    <div style={{ 
+                      fontSize: "32px", 
+                      fontWeight: "700",
+                      color: "#007bff",
+                      lineHeight: "1"
+                    }}>₹{(reportData.summary?.totalOpeningValue || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
+                  </div>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #e9ecef",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#6c757d", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Total Items</div>
+                    <div style={{ 
+                      fontSize: "32px", 
+                      fontWeight: "700",
+                      color: "#dc3545",
+                      lineHeight: "1"
+                    }}>{reportData.summary?.totalItems || 0}</div>
+                  </div>
+
+                  <div style={{ 
+                    backgroundColor: "#e8f4fd", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #b8daff",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,123,255,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#0c5aa6", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Period</div>
+                    <div style={{ 
+                      fontSize: "18px", 
+                      fontWeight: "600",
+                      color: "#0c5aa6",
+                      lineHeight: "1.2"
+                    }}>{reportData.summary?.period || "All time"}</div>
+                  </div>
+                </div>
+
+                {/* Item Details Report */}
+                <div style={{ marginBottom: "40px" }}>
+                  <h3 style={{ 
+                    margin: "0 0 20px 0",
+                    fontSize: "20px",
+                    fontWeight: "600",
+                    color: "#2c3e50"
+                  }}>
+                    Opening Stock Items Added
+                    {reportData?.summary?.period && reportData.summary.period !== "All time" && (
+                      <span style={{ color: "#007bff", fontWeight: "500" }}>
+                        {" "}in {reportData.summary.period}
+                      </span>
+                    )}
+                  </h3>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa",
+                    borderRadius: "10px",
+                    overflow: "hidden",
+                    border: "1px solid #e9ecef"
+                  }}>
+                    <table style={{ 
+                      width: "100%", 
+                      borderCollapse: "collapse",
+                      backgroundColor: "white"
+                    }}>
+                      <thead>
+                        <tr style={{ backgroundColor: "#f1f3f4" }}>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "left", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Item Name</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "left", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>SKU</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "left", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Store</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Opening Stock</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Opening Value</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "left", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Date Added</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportData.itemDetails?.length === 0 ? (
+                          <tr>
+                            <td colSpan="6" style={{ 
+                              padding: "40px 20px", 
+                              textAlign: "center",
+                              color: "#6c757d",
+                              fontSize: "16px"
+                            }}>
+                              <div style={{ marginBottom: "8px" }}>📦 No opening stock items found</div>
+                              <div style={{ fontSize: "14px" }}>
+                                {selectedMonth 
+                                  ? `No items were created with opening stock in ${reportData.summary?.period || selectedMonth}`
+                                  : "No items with opening stock found in the selected period"
+                                }
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          getPaginatedData(reportData.itemDetails || []).map((item, idx) => (
+                            <tr key={idx} style={{ 
+                              borderBottom: "1px solid #f1f3f4",
+                              transition: "background-color 0.2s ease"
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f8f9fa"}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "white"}>
+                              <td style={{ 
+                                padding: "16px 20px",
+                                fontWeight: "600",
+                                color: "#495057"
+                              }}>
+                                {item.itemName}
+                                {item.type === 'grouped' && (
+                                  <div style={{ 
+                                    fontSize: "12px", 
+                                    color: "#6c757d",
+                                    fontWeight: "400"
+                                  }}>Group: {item.groupName}</div>
+                                )}
+                              </td>
+                              <td style={{ 
+                                padding: "16px 20px",
+                                color: "#6c757d",
+                                fontSize: "14px"
+                              }}>{item.sku || '-'}</td>
+                              <td style={{ 
+                                padding: "16px 20px",
+                                fontWeight: "500",
+                                color: "#495057"
+                              }}>{item.store}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "600",
+                                color: "#28a745"
+                              }}>{item.openingStock}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "700",
+                                color: "#007bff"
+                              }}>₹{item.openingValue.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                              <td style={{ 
+                                padding: "16px 20px",
+                                color: "#6c757d",
+                                fontSize: "14px"
+                              }}>{new Date(item.createdAt).toLocaleDateString('en-IN')}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                    
+                    {/* Add pagination controls for opening stock report */}
+                    <PaginationControls 
+                      totalItems={reportData.itemDetails?.length || 0} 
+                      data={reportData.itemDetails || []} 
+                    />
+                  </div>
+                </div>
+
+                {/* Store-wise Report */}
+                <div style={{ marginBottom: "40px" }}>
+                  <h3 style={{ 
+                    margin: "0 0 20px 0",
+                    fontSize: "20px",
+                    fontWeight: "600",
+                    color: "#2c3e50"
+                  }}>Store-wise Opening Stock Summary</h3>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa",
+                    borderRadius: "10px",
+                    overflow: "hidden",
+                    border: "1px solid #e9ecef"
+                  }}>
+                    <table style={{ 
+                      width: "100%", 
+                      borderCollapse: "collapse",
+                      backgroundColor: "white"
+                    }}>
+                      <thead>
+                        <tr style={{ backgroundColor: "#f1f3f4" }}>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "left", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Store</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Total Opening Stock</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Total Opening Value</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Item Count</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportData.storeReport?.length === 0 ? (
+                          <tr>
+                            <td colSpan="4" style={{ 
+                              padding: "40px 20px", 
+                              textAlign: "center",
+                              color: "#6c757d",
+                              fontSize: "16px"
+                            }}>
+                              <div style={{ marginBottom: "8px" }}>🏪 No store data found</div>
+                              <div style={{ fontSize: "14px" }}>
+                                No stores have opening stock items for the selected period
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          reportData.storeReport?.map((store, idx) => (
+                            <tr key={idx} style={{ 
+                              borderBottom: "1px solid #f1f3f4",
+                              transition: "background-color 0.2s ease"
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f8f9fa"}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "white"}>
+                              <td style={{ 
+                                padding: "16px 20px",
+                                fontWeight: "600",
+                                color: "#495057"
+                              }}>{store.store}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "600",
+                                color: "#28a745"
+                              }}>{store.totalStock}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "700",
+                                color: "#007bff"
+                              }}>₹{store.totalValue.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "600",
+                                color: "#6c757d"
+                              }}>{store.itemCount}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {reportType === "stock-on-hand" && (
+              <>
+                <div style={{ 
+                  marginBottom: "32px",
+                  paddingBottom: "20px",
+                  borderBottom: "2px solid #f8f9fa"
+                }}>
+                  <h2 style={{ 
+                    margin: "0 0 8px 0",
+                    fontSize: "24px",
+                    fontWeight: "600",
+                    color: "#2c3e50",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px"
+                  }}>
+                    <FiPackage style={{ color: "#17a2b8" }} />
+                    Stock On Hand Report
+                  </h2>
+                  <p style={{ 
+                    margin: 0,
+                    color: "#6c757d",
+                    fontSize: "14px"
+                  }}>
+                    Available stock calculated based on all transactions up to the selected date.
+                    {reportData?.summary?.period && (
+                      <span style={{ fontWeight: "500", color: "#495057" }}>
+                        {" "}{reportData.summary.period}
+                      </span>
+                    )}
+                  </p>
+                </div>
+
+                {/* Summary Cards */}
+                <div style={{ 
+                  display: "grid", 
+                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", 
+                  gap: "20px", 
+                  marginBottom: "40px"
+                }}>
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #e9ecef",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#6c757d", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Total Opening Stock</div>
+                    <div style={{ 
+                      fontSize: "32px", 
+                      fontWeight: "700",
+                      color: "#6c757d",
+                      lineHeight: "1"
+                    }}>{reportData.summary?.totalOpeningStock || 0}</div>
+                  </div>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #e9ecef",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#6c757d", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Total Stock In</div>
+                    <div style={{ 
+                      fontSize: "32px", 
+                      fontWeight: "700",
+                      color: "#28a745",
+                      lineHeight: "1"
+                    }}>{reportData.summary?.totalStockIn || 0}</div>
+                  </div>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #e9ecef",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#6c757d", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Total Stock Out</div>
+                    <div style={{ 
+                      fontSize: "32px", 
+                      fontWeight: "700",
+                      color: "#dc3545",
+                      lineHeight: "1"
+                    }}>{reportData.summary?.totalStockOut || 0}</div>
+                  </div>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #e9ecef",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#6c757d", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Total Closing Stock</div>
+                    <div style={{ 
+                      fontSize: "32px", 
+                      fontWeight: "700",
+                      color: "#17a2b8",
+                      lineHeight: "1"
+                    }}>{reportData.summary?.totalClosingStock || 0}</div>
+                  </div>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #e9ecef",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#6c757d", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Total Stock Value</div>
+                    <div style={{ 
+                      fontSize: "32px", 
+                      fontWeight: "700",
+                      color: "#28a745",
+                      lineHeight: "1"
+                    }}>₹{(reportData.summary?.totalStockValue || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
+                  </div>
+
+                  <div style={{ 
+                    backgroundColor: "#e8f4fd", 
+                    padding: "24px", 
+                    borderRadius: "12px", 
+                    border: "1px solid #b8daff",
+                    transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                    cursor: "default"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,123,255,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}>
+                    <div style={{ 
+                      fontSize: "13px", 
+                      color: "#0c5aa6", 
+                      fontWeight: "500",
+                      marginBottom: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Period</div>
+                    <div style={{ 
+                      fontSize: "18px", 
+                      fontWeight: "600",
+                      color: "#0c5aa6",
+                      lineHeight: "1.2"
+                    }}>{reportData.summary?.period || "Current Stock"}</div>
+                  </div>
+                </div>
+
+                {/* Item Details Report */}
+                <div style={{ marginBottom: "40px" }}>
+                  <h3 style={{ 
+                    margin: "0 0 20px 0",
+                    fontSize: "20px",
+                    fontWeight: "600",
+                    color: "#2c3e50"
+                  }}>
+                    Stock On Hand Details
+                    {reportData?.summary?.period && reportData.summary.period !== "Current Stock" && (
+                      <span style={{ color: "#17a2b8", fontWeight: "500" }}>
+                        {" "}({reportData.summary.period})
+                      </span>
+                    )}
+                  </h3>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa",
+                    borderRadius: "10px",
+                    overflow: "hidden",
+                    border: "1px solid #e9ecef"
+                  }}>
+                    <table style={{ 
+                      width: "100%", 
+                      borderCollapse: "collapse",
+                      backgroundColor: "white"
+                    }}>
+                      <thead>
+                        <tr style={{ backgroundColor: "#f1f3f4" }}>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "left", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Item Name</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "left", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>SKU</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "left", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Category</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "left", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Warehouse</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Opening Stock</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Stock In</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Stock Out</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Closing Stock</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Cost Price</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Stock Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportData.itemDetails?.length === 0 ? (
+                          <tr>
+                            <td colSpan="10" style={{ 
+                              padding: "40px 20px", 
+                              textAlign: "center",
+                              color: "#6c757d",
+                              fontSize: "16px"
+                            }}>
+                              <div style={{ marginBottom: "8px" }}>📦 No stock found</div>
+                              <div style={{ fontSize: "14px" }}>
+                                No items have stock on hand for the selected criteria
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          getPaginatedData(reportData.itemDetails || []).map((item, idx) => (
+                            <tr key={idx} style={{ 
+                              borderBottom: "1px solid #f1f3f4",
+                              transition: "background-color 0.2s ease"
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f8f9fa"}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "white"}>
+                              <td style={{ 
+                                padding: "16px 20px",
+                                fontWeight: "600",
+                                color: "#495057"
+                              }}>
+                                {item.itemName}
+                                {item.isFromGroup && (
+                                  <div style={{ 
+                                    fontSize: "12px", 
+                                    color: "#6c757d",
+                                    fontWeight: "400"
+                                  }}>Group: {item.itemGroupName}</div>
+                                )}
+                              </td>
+                              <td style={{ 
+                                padding: "16px 20px",
+                                color: "#6c757d",
+                                fontSize: "14px",
+                                fontFamily: "monospace"
+                              }}>{item.sku || '-'}</td>
+                              <td style={{ 
+                                padding: "16px 20px"
+                              }}>
+                                <span style={{ 
+                                  padding: "4px 12px", 
+                                  backgroundColor: "#e9ecef", 
+                                  borderRadius: "20px", 
+                                  fontSize: "12px",
+                                  fontWeight: "500",
+                                  color: "#495057"
+                                }}>
+                                  {item.category || 'Uncategorized'}
+                                </span>
+                              </td>
+                              <td style={{ 
+                                padding: "16px 20px",
+                                fontWeight: "500",
+                                color: "#495057"
+                              }}>{item.warehouse}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "600",
+                                color: "#6c757d"
+                              }}>{item.openingStock || 0}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "600",
+                                color: "#28a745"
+                              }}>{item.stockIn || 0}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "600",
+                                color: "#dc3545"
+                              }}>{item.stockOut || 0}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "600",
+                                color: "#17a2b8"
+                              }}>{item.closingStock || 0}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                color: "#6c757d"
+                              }}>₹{item.costPrice.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "700",
+                                color: "#28a745"
+                              }}>₹{item.stockValue.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                    
+                    <PaginationControls 
+                      totalItems={reportData.itemDetails?.length || 0} 
+                      data={reportData.itemDetails || []} 
+                    />
+                  </div>
+                </div>
+
+                {/* Warehouse-wise Report */}
+                <div style={{ marginBottom: "40px" }}>
+                  <h3 style={{ 
+                    margin: "0 0 20px 0",
+                    fontSize: "20px",
+                    fontWeight: "600",
+                    color: "#2c3e50"
+                  }}>Warehouse-wise Stock Summary</h3>
+                  
+                  <div style={{ 
+                    backgroundColor: "#f8f9fa",
+                    borderRadius: "10px",
+                    overflow: "hidden",
+                    border: "1px solid #e9ecef"
+                  }}>
+                    <table style={{ 
+                      width: "100%", 
+                      borderCollapse: "collapse",
+                      backgroundColor: "white"
+                    }}>
+                      <thead>
+                        <tr style={{ backgroundColor: "#f1f3f4" }}>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "left", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Warehouse</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Total Stock</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Total Value</th>
+                          <th style={{ 
+                            padding: "16px 20px", 
+                            textAlign: "right", 
+                            fontWeight: "600",
+                            color: "#495057",
+                            fontSize: "14px",
+                            borderBottom: "2px solid #dee2e6"
+                          }}>Item Count</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportData.warehouseReport?.length === 0 ? (
+                          <tr>
+                            <td colSpan="4" style={{ 
+                              padding: "40px 20px", 
+                              textAlign: "center",
+                              color: "#6c757d",
+                              fontSize: "16px"
+                            }}>
+                              <div style={{ marginBottom: "8px" }}>🏪 No warehouse data found</div>
+                              <div style={{ fontSize: "14px" }}>
+                                No warehouses have stock for the selected criteria
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          reportData.warehouseReport?.map((warehouse, idx) => (
+                            <tr key={idx} style={{ 
+                              borderBottom: "1px solid #f1f3f4",
+                              transition: "background-color 0.2s ease"
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f8f9fa"}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "white"}>
+                              <td style={{ 
+                                padding: "16px 20px",
+                                fontWeight: "600",
+                                color: "#495057"
+                              }}>{warehouse.warehouse}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "600",
+                                color: "#17a2b8"
+                              }}>{warehouse.totalStock}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "700",
+                                color: "#28a745"
+                              }}>₹{warehouse.totalValue.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                              <td style={{ 
+                                padding: "16px 20px", 
+                                textAlign: "right",
+                                fontWeight: "600",
+                                color: "#6c757d"
+                              }}>{warehouse.totalItems}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </>
             )}
           </div>

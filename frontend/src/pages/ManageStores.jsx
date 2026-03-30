@@ -12,6 +12,8 @@ const ManageStores = () => {
     const [phone, setPhone] = useState("");
     const [gst, setGst] = useState("");
     const [power, setPower] = useState("normal");
+    const [role, setRole] = useState("");
+    const [allowedLocCodes, setAllowedLocCodes] = useState([]);
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     
@@ -31,7 +33,7 @@ const ManageStores = () => {
     const [resetLoading, setResetLoading] = useState(false);
     
     // Check if user is admin
-    const userInfo = JSON.parse(localStorage.getItem("userInfo") || "{}");
+    const userInfo = JSON.parse(localStorage.getItem("rootfinuser") || "{}");
     const isAdmin = userInfo.power === "admin";
 
     // Fetch all stores on component mount
@@ -65,6 +67,8 @@ const ManageStores = () => {
         setPhone(store.phone || "");
         setGst(store.gst || "");
         setPower(store.power);
+        setRole(store.role || "");
+        setAllowedLocCodes(store.allowedLocCodes || []);
         setPassword(""); // Don't populate password for security
         
         // Scroll to form
@@ -82,6 +86,8 @@ const ManageStores = () => {
         setPhone("");
         setGst("");
         setPower("normal");
+        setRole("");
+        setAllowedLocCodes([]);
     };
 
     const handleSubmit = async (e) => {
@@ -113,6 +119,8 @@ const ManageStores = () => {
             phone,
             gst,
             power,
+            role: role || undefined,
+            allowedLocCodes: role === "cluster_manager" ? allowedLocCodes : [],
         };
 
         // Only include password if provided
@@ -350,6 +358,75 @@ const ManageStores = () => {
                                 </select>
                             </div>
 
+                            <div>
+                                <label className="block mb-2 font-semibold text-gray-700">
+                                    Role
+                                </label>
+                                <select
+                                    value={role}
+                                    onChange={(e) => { setRole(e.target.value); setAllowedLocCodes([]); }}
+                                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#016E5B] focus:border-none outline-none"
+                                >
+                                    <option value="">— None —</option>
+                                    <option value="store_user">Store User</option>
+                                    <option value="store_manager">Store Manager</option>
+                                    <option value="cluster_manager">Cluster Manager</option>
+                                    <option value="admin">Admin</option>
+                                    <option value="superadmin">Super Admin</option>
+                                </select>
+                            </div>
+
+                            {role === "cluster_manager" && (
+                                <div>
+                                    <label className="block mb-2 font-semibold text-gray-700">
+                                        Allowed Stores (Loc Codes)
+                                    </label>
+                                    <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto space-y-1">
+                                        {[
+                                            { locName: "Z-Edapally1", locCode: "144" },
+                                            { locName: "Warehouse", locCode: "858" },
+                                            { locName: "G-Edappally", locCode: "702" },
+                                            { locName: "HEAD OFFICE01", locCode: "759" },
+                                            { locName: "SG-Trivandrum", locCode: "700" },
+                                            { locName: "Z- Edappal", locCode: "100" },
+                                            { locName: "Z.Perinthalmanna", locCode: "133" },
+                                            { locName: "Z.Kottakkal", locCode: "122" },
+                                            { locName: "G.Kottayam", locCode: "701" },
+                                            { locName: "G.Perumbavoor", locCode: "703" },
+                                            { locName: "G.Thrissur", locCode: "704" },
+                                            { locName: "G.Chavakkad", locCode: "706" },
+                                            { locName: "G.Calicut", locCode: "712" },
+                                            { locName: "G.Vadakara", locCode: "708" },
+                                            { locName: "G.Edappal", locCode: "707" },
+                                            { locName: "G.Perinthalmanna", locCode: "709" },
+                                            { locName: "G.Kottakkal", locCode: "711" },
+                                            { locName: "G.Manjeri", locCode: "710" },
+                                            { locName: "G.Palakkad", locCode: "705" },
+                                            { locName: "G.Kalpetta", locCode: "717" },
+                                            { locName: "G.Kannur", locCode: "716" },
+                                            { locName: "G.MG Road", locCode: "718" },
+                                            { locName: "WAREHOUSE", locCode: "103" },
+                                        ].map(s => (
+                                            <label key={s.locCode} className="flex items-center gap-2 cursor-pointer text-sm">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={allowedLocCodes.includes(s.locCode)}
+                                                    onChange={(e) => {
+                                                        setAllowedLocCodes(prev =>
+                                                            e.target.checked
+                                                                ? [...prev, s.locCode]
+                                                                : prev.filter(c => c !== s.locCode)
+                                                        );
+                                                    }}
+                                                />
+                                                {s.locName} ({s.locCode})
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">{allowedLocCodes.length} store(s) selected</p>
+                                </div>
+                            )}
+
                             <div className="flex justify-center gap-4 mt-6">
                                 {isEditMode && (
                                     <button
@@ -488,6 +565,7 @@ const ManageStores = () => {
                                         <th className="border p-3 text-left">GST</th>
                                         <th className="border p-3 text-left">Address</th>
                                         <th className="border p-3 text-left">User Type</th>
+                                        <th className="border p-3 text-left">Role</th>
                                         <th className="border p-3 text-center">Actions</th>
                                     </tr>
                                 </thead>
@@ -526,6 +604,18 @@ const ManageStores = () => {
                                                 }`}>
                                                     {store.power}
                                                 </span>
+                                            </td>
+                                            <td className="border p-3">
+                                                {store.role === 'cluster_manager' ? (
+                                                    <div>
+                                                        <span className="px-2 py-1 rounded text-xs bg-orange-100 text-orange-800">cluster manager</span>
+                                                        {store.allowedLocCodes?.length > 0 && (
+                                                            <div className="text-xs text-gray-500 mt-1">{store.allowedLocCodes.join(', ')}</div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-gray-400 italic text-xs">{store.role || '-'}</span>
+                                                )}
                                             </td>
                                             <td className="border p-3 text-center">
                                                 <button

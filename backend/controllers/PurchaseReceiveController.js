@@ -787,11 +787,6 @@ export const createPurchaseReceive = async (req, res) => {
       });
     }
     
-    // Save all data to MongoDB
-    const purchaseReceive = await PurchaseReceive.create(receiveData);
-    console.log(`Purchase receive ${receiveData.receiveNumber} saved to MongoDB with ID: ${purchaseReceive._id}`);
-    console.log(`Items saved: ${receiveData.items?.length || 0} item(s)`);
-    
     // Determine target warehouse from user's email or locCode
     // Admin email (officerootments@gmail.com) always uses "Warehouse" regardless of locCode
     const adminEmails = ['officerootments@gmail.com'];
@@ -848,6 +843,16 @@ export const createPurchaseReceive = async (req, res) => {
         console.log(`⚠️ No locCode provided, using default "Warehouse"`);
       }
     }
+    
+    console.log(`📍 Final target warehouse: "${targetWarehouse}"`);
+    
+    // Add warehouse to receiveData before saving
+    receiveData.toWarehouse = targetWarehouse;
+    
+    // Save all data to MongoDB
+    const purchaseReceive = await PurchaseReceive.create(receiveData);
+    console.log(`Purchase receive ${receiveData.receiveNumber} saved to MongoDB with ID: ${purchaseReceive._id}`);
+    console.log(`Items saved: ${receiveData.items?.length || 0} item(s)`);
     
     // If status is "received" or "partially_received", automatically increase stock for received items
     // Check status case-insensitively to handle variations
@@ -1063,15 +1068,16 @@ export const getPurchaseReceives = async (req, res) => {
                     (userPower && (userPower.toLowerCase() === 'admin' || userPower.toLowerCase() === 'super_admin')) ||
                     (locCode && (locCode === '858' || locCode === '103')); // 858 = Warehouse, 103 = WAREHOUSE
     
-    // If admin has switched to a specific store (not Warehouse), filter by that store
-    const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "Warehouse";
+    // Admin viewing a specific branch store (not Warehouse/admin home)
+    const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "All Stores" && warehouse !== "Warehouse";
     
     if ((!isAdmin || isAdminViewingSpecificStore) && warehouse) {
-      // Check warehouse, branch, or locCode fields for compatibility with old receives
+      // toWarehouse stores the warehouse name; also check locCode for older records
       query.$or = [
+        { toWarehouse: warehouse },
         { warehouse: warehouse },
         { branch: warehouse },
-        { locCode: warehouse }
+        ...(locCode ? [{ locCode: locCode }] : [])
       ];
       console.log(`📦 Filtering purchase receives for warehouse: ${warehouse}`);
     } else if (!isAdmin && userId) {

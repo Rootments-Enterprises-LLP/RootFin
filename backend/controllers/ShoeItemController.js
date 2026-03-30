@@ -499,6 +499,7 @@ export const getShoeItems = async (req, res) => {
             unit: group.unit || "",
             manufacturer: group.manufacturer || "",
             brand: group.brand || "",
+            category: group.category || item.category || "",
             taxPreference: group.taxPreference || "taxable",
             taxRateIntra: group.intraStateTaxRate || "",
             taxRateInter: group.interStateTaxRate || "",

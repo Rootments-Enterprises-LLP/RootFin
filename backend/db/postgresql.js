@@ -1,13 +1,11 @@
-import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
+dotenv.config(); // 🔥 MUST BE FIRST - Load .env before reading any env variables
+
+import { Sequelize } from 'sequelize';
 import fs from 'fs';
 
-// 🔁 Load correct .env file based on env
+// NOW read NODE_ENV (after .env is loaded)
 const env = process.env.NODE_ENV || 'development';
-const envFile = `.env.${env}`;
-if (fs.existsSync(envFile)) {
-  dotenv.config({ path: envFile });
-}
 
 // Get PostgreSQL connection details from environment variables
 const getPostgresConfig = () => {
@@ -45,9 +43,14 @@ const getPostgresConfig = () => {
 // Alternative: Use connection URI if provided
 const getConnectionUri = () => {
   if (env === 'production') {
-    return process.env.POSTGRES_URI_PROD || process.env.DATABASE_URL;
+    const uri = process.env.POSTGRES_URI_PROD || process.env.DATABASE_URL;
+    // Reject placeholder values
+    if (uri && uri.includes('[')) return null;
+    return uri || null;
   } else {
-    return process.env.POSTGRES_URI_DEV || process.env.DATABASE_URL;
+    const uri = process.env.POSTGRES_URI_DEV;
+    if (uri && uri.includes('[')) return null;
+    return uri || null;
   }
 };
 

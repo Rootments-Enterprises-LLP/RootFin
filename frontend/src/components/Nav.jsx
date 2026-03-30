@@ -46,7 +46,7 @@ const Nav = () => {
     const [isOpen, setIsOpen] = useState(true);
 
     const getInitialSection = useMemo(() => {
-        if (activePath === "/reports/sales" || activePath === "/reports/sales-by-invoice" || activePath === "/reports/inventory" || activePath === "/securityReport" || activePath === "/Revenuereport" || activePath === "/BookingReport" || activePath === "/RentOutReport") {
+        if (activePath === "/reports/sales" || activePath === "/reports/sales-by-invoice" || activePath === "/reports/inventory" || activePath === "/reports/income-expense" || activePath === "/securityReport" || activePath === "/Revenuereport" || activePath === "/BookingReport" || activePath === "/RentOutReport") {
             return "reports";
         }
         if (activePath.startsWith("/inventory") ||
@@ -114,6 +114,7 @@ const Nav = () => {
         "/Revenuereport", 
         "/BookingReport", 
         "/RentOutReport",
+        "/reports/income-expense",
         ...(hasSalesInventoryAccess ? ["/reports/sales", "/reports/sales-by-invoice", "/reports/inventory"] : [])
     ].includes(activePath);
 
@@ -312,14 +313,22 @@ const Nav = () => {
                                         </Link>
                                     </>
                                 )}
+                                <Link to="/reports/income-expense" className={subLinkClasses('/reports/income-expense')}>
+                                    <LineChart size={16} />
+                                    <span>Income &amp; Expense</span>
+                                </Link>
                             </div>
                         )}
                     </div>
 
                     {/* Income & Expenses */}
-                    <Link to="/Income&Expenses" className={singleLinkClasses("/Income&Expenses")}>
+                    <Link to="/income" className={singleLinkClasses("/income")}>
                         <DollarSign size={18} />
-                        <span>Income & Expenses</span>
+                        <span>Income</span>
+                    </Link>
+                    <Link to="/expenses" className={singleLinkClasses("/expenses")}>
+                        <DollarSign size={18} />
+                        <span>Expenses</span>
                     </Link>
 
                     {/* Cash / Bank Ledger */}

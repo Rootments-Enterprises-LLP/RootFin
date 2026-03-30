@@ -2,9 +2,11 @@ import SalesInvoice from "../model/SalesInvoice.js";
 import SalesInvoicePostgres from "../models/sequelize/SalesInvoice.js";
 import TransactionPostgres from "../models/sequelize/Transaction.js";
 import { nextGlobalSalesInvoice } from "../utils/nextSalesInvoice.js";
-import { updateStockOnInvoiceCreate, reverseStockOnInvoiceDelete } from "../utils/stockManagement.js";
+import { updateStockOnInvoiceCreate, reverseStockOnInvoiceDelete } from "../utils/ultraEnhancedStockManagement.js";
+import { validateStockBeforeInvoice, validateStockAfterInvoice } from "../utils/stockValidationSystem.js";
 import Transaction from "../model/Transaction.js";
 import User from "../model/UserModel.js";
+import mongoose from "mongoose";
 
 // ✅ Helper function to allocate payment amounts based on payment method
 const allocatePaymentAmounts = (invoice) => {
@@ -150,21 +152,6 @@ export const createSalesInvoice = async (req, res) => {
     const invoice = await SalesInvoice.create(invoiceData);
     console.log("✅ MongoDB invoice created:", invoice.invoiceNumber);
 
-    // Save to PostgreSQL
-    try {
-      const postgresInvoiceData = {
-        ...invoiceData,
-        // Convert MongoDB ObjectId to string if needed
-        mongoId: invoice._id.toString(),
-      };
-      
-      const postgresInvoice = await SalesInvoicePostgres.create(postgresInvoiceData);
-      console.log("✅ PostgreSQL invoice created:", postgresInvoice.invoiceNumber);
-    } catch (postgresError) {
-      console.error("❌ Error saving to PostgreSQL:", postgresError);
-      // Don't fail the invoice creation if PostgreSQL fails
-    }
-
     console.log("Created invoice with customerPhone:", invoice.customerPhone);
     console.log("Full created invoice:", invoice.toObject());
 
@@ -178,45 +165,62 @@ export const createSalesInvoice = async (req, res) => {
     }
 
     // ✅ UPDATE STOCK FOR ALL INVOICES (except Return/Refund/Cancel which should reverse stock)
+    // Use MongoDB transaction for atomicity
+    const session = await mongoose.startSession();
+    
     try {
-      console.log(`\n========== STOCK UPDATE CHECK ==========`);
-      console.log(`📊 Invoice category: "${invoice.category}"`);
-      console.log(`📊 Invoice warehouse: "${invoice.warehouse}"`);
-      console.log(`📊 Invoice branch: "${invoice.branch}"`);
-      console.log(`📊 Line items count: ${invoice.lineItems?.length || 0}`);
-      
-      const categoryLower = (invoice.category || "").toLowerCase().trim();
-      
-      // Categories that should REVERSE stock (increase available, decrease committed)
-      const reverseStockCategories = ["return", "refund", "cancel"];
-      const shouldReverseStock = reverseStockCategories.includes(categoryLower);
-      
-      console.log(`📊 Category: "${categoryLower}", Should reverse stock: ${shouldReverseStock}`);
-      console.log(`========================================\n`);
-      
-      if (invoice.lineItems && invoice.lineItems.length > 0) {
-        // Try warehouse first, then branch, then default
-        const warehouse = invoice.warehouse || invoice.branch || "Warehouse";
-        console.log(`🏢 Using warehouse for stock update: "${warehouse}"`);
+      await session.withTransaction(async () => {
+        console.log(`\n========== STOCK UPDATE CHECK ==========`);
+        console.log(`📊 Invoice category: "${invoice.category}"`);
+        console.log(`📊 Invoice warehouse: "${invoice.warehouse}"`);
+        console.log(`📊 Invoice branch: "${invoice.branch}"`);
+        console.log(`📊 Line items count: ${invoice.lineItems?.length || 0}`);
         
-        if (shouldReverseStock) {
-          // For Return/Refund/Cancel - reverse the stock (add back to available)
-          console.log(`🔄 Calling reverseStockOnInvoiceDelete (for ${categoryLower})...`);
-          await reverseStockOnInvoiceDelete(invoice.lineItems, warehouse);
-          console.log(`✅ Stock reversed successfully for ${categoryLower} invoice`);
+        const categoryLower = (invoice.category || "").toLowerCase().trim();
+        
+        // Categories that should REVERSE stock (increase available, decrease committed)
+        const reverseStockCategories = ["return", "refund", "cancel"];
+        const shouldReverseStock = reverseStockCategories.includes(categoryLower);
+        
+        console.log(`📊 Category: "${categoryLower}", Should reverse stock: ${shouldReverseStock}`);
+        console.log(`========================================\n`);
+        
+        if (invoice.lineItems && invoice.lineItems.length > 0) {
+          // Try warehouse first, then branch, then default
+          const warehouse = invoice.warehouse || invoice.branch || "Warehouse";
+          console.log(`🏢 Using warehouse for stock update: "${warehouse}"`);
+          
+          if (shouldReverseStock) {
+            // For Return/Refund/Cancel - reverse the stock (add back to available)
+            console.log(`🔄 Calling reverseStockOnInvoiceDelete (for ${categoryLower})...`);
+            await reverseStockOnInvoiceDelete(invoice.lineItems, warehouse, session);
+            console.log(`✅ Stock reversed successfully for ${categoryLower} invoice`);
+          } else {
+            // For all other categories - reduce stock with enhanced validation
+            console.log(`🔄 Calling enhanced updateStockOnInvoiceCreate...`);
+            const stockReport = await updateStockOnInvoiceCreate(invoice.lineItems, warehouse, session);
+            console.log(`✅ Enhanced stock update completed for ${categoryLower || "uncategorized"} invoice`);
+            console.log(`📊 Success Rate: ${stockReport.summary.successRate}`);
+            
+            // Log any failures for monitoring
+            if (stockReport.summary.failed > 0) {
+              console.warn(`⚠️ ${stockReport.summary.failed} items failed stock deduction`);
+              stockReport.failures.forEach(failure => {
+                console.warn(`   - ${failure.itemCode}: ${failure.reason}`);
+              });
+            }
+          }
         } else {
-          // For all other categories - reduce stock
-          console.log(`🔄 Calling updateStockOnInvoiceCreate...`);
-          await updateStockOnInvoiceCreate(invoice.lineItems, warehouse);
-          console.log(`✅ Stock updated successfully for ${categoryLower || "uncategorized"} invoice`);
+          console.log(`⏭️ Skipping stock update - no line items`);
         }
-      } else {
-        console.log(`⏭️ Skipping stock update - no line items`);
-      }
+      });
     } catch (stockError) {
       console.error("❌ Error updating stock:", stockError);
       console.error("❌ Stock error stack:", stockError.stack);
-      // Don't fail the invoice creation if stock update fails
+      // FAIL the invoice creation if stock update fails
+      throw new Error(`Stock update failed: ${stockError.message}`);
+    } finally {
+      await session.endSession();
     }
 
     res.status(201).json(invoice);
@@ -286,21 +290,6 @@ const createFinancialTransaction = async (invoice) => {
     // Save transaction to MongoDB
     const transaction = await Transaction.create(transactionData);
     console.log("✅ MongoDB transaction created:", transaction.invoiceNo);
-
-    // Save transaction to PostgreSQL
-    try {
-      const postgresTransactionData = {
-        ...transactionData,
-        // Convert MongoDB ObjectId to string if needed
-        mongoId: transaction._id.toString(),
-      };
-      
-      const postgresTransaction = await TransactionPostgres.create(postgresTransactionData);
-      console.log("✅ PostgreSQL transaction created:", postgresTransaction.invoiceNo);
-    } catch (postgresError) {
-      console.error("❌ Error saving transaction to PostgreSQL:", postgresError);
-      // Don't fail if PostgreSQL fails
-    }
 
     console.log("Transaction details:", {
       type: transactionType,
@@ -473,7 +462,7 @@ export const getSalesInvoices = async (req, res) => {
       (locCode && (locCode === "858" || locCode === "103"));
 
     // If admin has switched to a specific store (not Warehouse), filter by that store
-    const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "Warehouse";
+    const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "All Stores";
 
     // Store-level access control: filter invoices by store for non-admin users OR admins viewing specific store
     if ((!isAdmin || isAdminViewingSpecificStore) && (warehouse || filterLocCode)) {
@@ -584,9 +573,19 @@ export const updateSalesInvoice = async (req, res) => {
     }
 
     // ✅ UPDATE CORRESPONDING FINANCIAL TRANSACTION
+    // Skip payment field updates when this is a return-triggered update (returnStatus set)
+    // to preserve the original invoice's cash/bank/upi/amount in the day book
+    const isReturnUpdate = req.body.returnStatus === "partial" || req.body.returnStatus === "full";
     try {
-      await updateFinancialTransaction(invoice);
-      console.log("✅ Financial transaction updated successfully");
+      if (isReturnUpdate) {
+        // Do NOT update billValue on the original invoice's transaction when a return is processed.
+        // The original transaction should always reflect the original sale amount collected.
+        // The return transaction (RTN-) separately records the refund amount.
+        console.log("✅ Return update detected - preserving original transaction billValue and payment amounts");
+      } else {
+        await updateFinancialTransaction(invoice);
+        console.log("✅ Financial transaction updated successfully");
+      }
     } catch (transactionError) {
       console.error("❌ Error updating financial transaction:", transactionError);
       // Don't fail the invoice update if transaction update fails
