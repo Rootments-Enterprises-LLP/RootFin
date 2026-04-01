@@ -232,6 +232,7 @@ router.get('/getsaveCashBank', GetCloseController)
  *         description: Internal server error.
  */
 router.get('/AdminColseView', GetAllCloseData)
+router.get('/AdminCloseView', GetAllCloseData)
 
 
 
