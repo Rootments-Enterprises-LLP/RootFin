@@ -689,7 +689,7 @@ const TaxDropdown = ({ rowId, value, onChange, taxOptions, nonTaxableOptions, on
 };
 
 // ItemDropdown Component (simplified)
-const ItemDropdown = ({ rowId, value, onChange, onNewItem }) => {
+const ItemDropdown = ({ rowId, value, onChange, onNewItem, selectedWarehouse = "" }) => {
   const API_URL = baseUrl?.baseUrl?.replace(/\/$/, "") || "http://localhost:7000";
   const buttonRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -851,25 +851,51 @@ const ItemDropdown = ({ rowId, value, onChange, onNewItem }) => {
             </div>
           ) : (
             <>
-              {filteredItems.map((item) => (
-                <div
-                  key={item._id}
-                  onClick={() => handleSelectItem(item)}
-                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#f8fafc] cursor-pointer transition-colors"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[#1f2937] truncate">
-                      {item.itemName || "Unnamed Item"}
-                    </p>
-                    {item.sku && (
-                      <p className="text-xs text-[#64748b] truncate mt-0.5">SKU: {item.sku}</p>
+              {filteredItems.map((item) => {
+                // Calculate stock for the selected warehouse
+                let stockDisplay = null;
+                if (item.warehouseStocks && Array.isArray(item.warehouseStocks)) {
+                  if (selectedWarehouse) {
+                    const ws = item.warehouseStocks.find(w =>
+                      w.warehouse && w.warehouse.toLowerCase().trim() === selectedWarehouse.toLowerCase().trim()
+                    );
+                    const qty = ws ? (parseFloat(ws.stockOnHand) || 0) : 0;
+                    stockDisplay = { qty, label: selectedWarehouse };
+                  } else {
+                    const total = item.warehouseStocks.reduce((sum, w) => sum + (parseFloat(w.stockOnHand) || 0), 0);
+                    stockDisplay = { qty: total, label: "All" };
+                  }
+                }
+
+                return (
+                  <div
+                    key={item._id}
+                    onClick={() => handleSelectItem(item)}
+                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#f8fafc] cursor-pointer transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#1f2937] truncate">
+                        {item.itemName || "Unnamed Item"}
+                      </p>
+                      {item.sku && (
+                        <p className="text-xs text-[#64748b] truncate mt-0.5">SKU: {item.sku}</p>
+                      )}
+                    </div>
+                    {stockDisplay !== null && (
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+                        stockDisplay.qty > 0
+                          ? "bg-green-50 text-green-700"
+                          : "bg-red-50 text-red-500"
+                      }`}>
+                        {stockDisplay.qty} in stock
+                      </span>
+                    )}
+                    {selectedItem && selectedItem._id === item._id && (
+                      <Check size={16} className="text-[#2563eb] shrink-0" />
                     )}
                   </div>
-                  {selectedItem && selectedItem._id === item._id && (
-                    <Check size={16} className="text-[#2563eb] shrink-0" />
-                  )}
-                </div>
-              ))}
+                );
+              })}
               <div
                 onClick={() => {
                   onNewItem();
@@ -1938,6 +1964,24 @@ const NewVendorCreditForm = ({ creditId, isEditMode = false }) => {
                   <Label>Warehouse</Label>
                   <Select value={warehouse} onChange={(e) => setWarehouse(e.target.value)}>
                     <option value="">Select a warehouse</option>
+                    <option value="Calicut">Calicut</option>
+                    <option value="Chavakkad Branch">Chavakkad Branch</option>
+                    <option value="Edapally Branch">Edapally Branch</option>
+                    <option value="Edappal Branch">Edappal Branch</option>
+                    <option value="Grooms Trivandrum">Grooms Trivandrum</option>
+                    <option value="Head Office">Head Office</option>
+                    <option value="Kalpetta Branch">Kalpetta Branch</option>
+                    <option value="Kannur Branch">Kannur Branch</option>
+                    <option value="Kottakkal Branch">Kottakkal Branch</option>
+                    <option value="Kottayam Branch">Kottayam Branch</option>
+                    <option value="Manjery Branch">Manjery Branch</option>
+                    <option value="Palakkad Branch">Palakkad Branch</option>
+                    <option value="Perinthalmanna Branch">Perinthalmanna Branch</option>
+                    <option value="Perumbavoor Branch">Perumbavoor Branch</option>
+                    <option value="SuitorGuy MG Road">SuitorGuy MG Road</option>
+                    <option value="Thrissur Branch">Thrissur Branch</option>
+                    <option value="Vadakara Branch">Vadakara Branch</option>
+                    <option value="Warehouse">Warehouse</option>
                   </Select>
                 </div>
 
@@ -1979,6 +2023,7 @@ const NewVendorCreditForm = ({ creditId, isEditMode = false }) => {
                               value={row.itemData || row.item}
                               onChange={(value) => handleUpdateRow(row.id, "item", value)}
                               onNewItem={() => navigate("/shoe-sales/items/new")}
+                              selectedWarehouse={warehouse}
                             />
                           </div>
                         </td>

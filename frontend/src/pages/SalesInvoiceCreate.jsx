@@ -722,6 +722,7 @@ const SubCategoryDropdown = ({ value, onChange, subtleControlBase }) => {
     { value: "", label: "Select sub category" },
     { value: "shoe sales", label: "Shoe Sales" },
     { value: "shirt sales", label: "Shirt Sales" },
+    { value: "mixed sales", label: "Mixed Sales (Shoes & Shirts)" }, // New option for mixed sales
   ];
 
   useEffect(() => {
@@ -769,7 +770,7 @@ const SubCategoryDropdown = ({ value, onChange, subtleControlBase }) => {
       )}
     </div>
   );
-};
+}
 
 const SalesInvoiceCreate = () => {
   // Complete and corrected mapping from branch names to location codes
@@ -845,6 +846,9 @@ const SalesInvoiceCreate = () => {
     "sg.tvm": "700",
     "SG.tvm": "700",
     "sg-tvm": "700",
+    "Grooms Trivandrum": "700",  // ✅ ADDED: Main Trivandrum store
+    "Grooms Trivandum": "700",   // ✅ ADDED: Spelling variation
+    "Trivandrum Branch": "700",  // ✅ ADDED: Branch variation
     "SG.Kottayam": "701",
     
     // Z. prefix stores (franchise/other branches)
@@ -858,6 +862,27 @@ const SalesInvoiceCreate = () => {
     "G.Kottayam Branch": "701",
     "Kottayam Branch": "701",
     "Kottayam": "701",
+    
+    // All dropdown branch name variations
+    "Edapally Branch": "702",
+    "Chavakkad Branch": "706",
+    "Edappal Branch": "707",
+    "Kalpetta Branch": "717",
+    "Kannur Branch": "716",
+    "Kottakkal Branch": "711",
+    "Manjery Branch": "710",
+    "Manjeri Branch": "710",
+    "Palakkad Branch": "705",
+    "Perinthalmanna Branch": "709",
+    "Perumbavoor Branch": "703",
+    "Thrissur Branch": "704",
+    "Vadakara Branch": "708",
+    "Calicut": "712",
+    "Calicut Branch": "712",
+    "Z-Edapally1 Branch": "144",
+    "Z-Edappal Branch": "100",
+    "Z-Perinthalmanna Branch": "133",
+    "Z-Kottakkal Branch": "122",
   };
 
   const navigate = useNavigate();
@@ -896,33 +921,28 @@ const SalesInvoiceCreate = () => {
   const getInitialBranch = () => {
     try {
       const userStr = localStorage.getItem("rootfinuser");
-      console.log("🔍 Raw user data from localStorage:", userStr);
-      
       if (userStr) {
         const user = JSON.parse(userStr);
+        
+        // Admin users should not be locked to a branch — return Warehouse so they can pick freely
+        if ((user?.power || "").toLowerCase() === "admin") {
+          return "Warehouse";
+        }
+        
         const userLocCode = user?.locCode;
-        
-        console.log("👤 Parsed user object:", user);
-        console.log("📍 User location code:", userLocCode);
-        
         if (userLocCode) {
           // Find the branch name that matches the user's location code
           for (const [branchName, locCode] of Object.entries(branchToLocCodeMap)) {
-            console.log(`🔄 Checking: ${branchName} = ${locCode} vs user ${userLocCode}`);
             if (locCode === userLocCode) {
-              console.log(`🏢 Setting initial branch based on user location: "${branchName}" (${userLocCode})`);
               return branchName;
             }
           }
-          console.log(`❌ No branch found for user location code: ${userLocCode}`);
         }
       }
     } catch (error) {
       console.error("Error getting initial branch from user location:", error);
     }
     
-    // Fallback to Warehouse if no match found
-    console.log("🏢 Falling back to Warehouse");
     return "Warehouse";
   };
   
@@ -1362,11 +1382,11 @@ const SalesInvoiceCreate = () => {
     const user = getUserInfo();
     if (!user) return { isAdmin: false, userStore: null, isStoreUser: false };
 
-    // Check if user is admin (has admin role or no specific store assigned)
-    const isAdmin = user.role === "admin" || user.role === "superadmin" || !user.storeName;
+    // Check if user is admin (has admin power or no specific store assigned)
+    const isAdmin = (user.power || "").toLowerCase() === "admin" || (user.power || "").toLowerCase() === "superadmin";
     
     // If user has a storeName, they are a store user
-    const isStoreUser = !!user.storeName && user.role !== "admin" && user.role !== "superadmin";
+    const isStoreUser = !!user.storeName && !isAdmin;
     
     return {
       isAdmin,
@@ -1723,6 +1743,12 @@ const SalesInvoiceCreate = () => {
       return;
     }
 
+    // Validate payment method is selected
+    if (!isSplitPayment && (!paymentMethod || paymentMethod.length === 0)) {
+      showStockAlert("Please select a payment method", 'error');
+      return;
+    }
+
     // Validate that all line items have required data
     const invalidItems = lineItems.filter(item => !item.item || !item.quantity || parseFloat(item.quantity) <= 0);
     if (invalidItems.length > 0) {
@@ -2020,10 +2046,37 @@ For any queries, please contact us.
 ${invoiceData.branch || 'Suitor Guy'}
 Customer Service Available`;
   
-    const url = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+    // Detect if device is mobile or desktop
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Use web.whatsapp.com for desktop (works in browser), wa.me for mobile
+    const url = isMobile 
+      ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`
+      : `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(message)}`;
   
     console.log("📱 Opening WhatsApp with URL:", url);
-    window.open(url, "_blank");
+    console.log("📱 Device type:", isMobile ? "Mobile" : "Desktop");
+    
+    // Try to open WhatsApp
+    const whatsappWindow = window.open(url, "_blank");
+    
+    // Check if popup was blocked
+    if (!whatsappWindow || whatsappWindow.closed || typeof whatsappWindow.closed === 'undefined') {
+      console.warn("⚠️ Pop-up blocked! Showing fallback message.");
+      
+      // Fallback: Show alert with instructions
+      alert(
+        `WhatsApp redirect was blocked by your browser.\n\n` +
+        `Please allow pop-ups for this site, or manually open WhatsApp and send the message to:\n\n` +
+        `Phone: ${formattedPhone}\n\n` +
+        `The invoice has been saved successfully.`
+      );
+      
+      // Try alternative method: direct navigation (works if pop-up blocker is strict)
+      setTimeout(() => {
+        window.location.href = url;
+      }, 100);
+    }
   };
 
   // Enter key to save invoice - DISABLED to allow barcode scanning
@@ -2547,6 +2600,18 @@ Customer Service Available`;
         return item;
       })
     );
+
+    // Auto-set sub category when an item is selected (outside setLineItems to ensure it always fires)
+    if (key === "item" && typeof value === 'object' && value !== null) {
+      const itemCategory = (value.category || "").toLowerCase().trim();
+      if (itemCategory === "shoe") {
+        setSubCategory("shoe sales");
+      } else if (itemCategory === "shirt") {
+        setSubCategory("shirt sales");
+      } else {
+        setSubCategory("");
+      }
+    }
   };
 
   const handleQuantityChange = (id, value) => {
@@ -2928,7 +2993,8 @@ Customer Service Available`;
       
       return {
         id: Date.now() + Math.random(),
-        item: item,
+        item: item.itemName || "",
+        itemData: item, // Store the full item object for ItemDropdown
         itemDetails: item.itemName || "",
         quantity: quantity.toString(),
         rate: rate.toFixed(2),
@@ -2945,7 +3011,15 @@ Customer Service Available`;
       const filtered = prev.filter(item => item.itemDetails && item.itemDetails.trim() !== "");
       return [...filtered, ...newLineItems];
     });
-    
+
+    // Auto-set sub category from bulk added items
+    const categories = [...new Set(bulkScannedItems.map(s => (s.item.category || "").toLowerCase().trim()))];
+    if (categories.length === 1) {
+      if (categories[0] === "shoe") setSubCategory("shoe sales");
+      else if (categories[0] === "shirt") setSubCategory("shirt sales");
+    } else if (categories.includes("shoe") && categories.includes("shirt")) {
+      setSubCategory("mixed sales");
+    }
     console.log(`✅ Added ${newLineItems.length} items to invoice`);
     handleBulkAddClose();
   };
@@ -3235,6 +3309,11 @@ Customer Service Available`;
                   onChange={setSubCategory}
                   subtleControlBase={subtleControlBase}
                 />
+                {subCategory === "mixed sales" && (
+                  <p className="mt-1 text-xs text-[#6b7280]">
+                    💡 Mixed Sales allows you to add both shoes and shirts to the same invoice
+                  </p>
+                )}
               </div>
             </div>
           </div>

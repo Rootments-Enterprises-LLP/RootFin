@@ -262,7 +262,7 @@ const Header = (prop) => {
                         <p className="text-sm font-semibold text-gray-800">{formatLocationName(displayName)}</p>
                     </div>
                     
-                    {currentUser.power === 'admin' && (
+                    {(currentUser.power === 'admin' || (currentUser.role || '').toLowerCase() === 'cluster_manager') && (
                         <div className="space-y-2">
                             <label className="block text-xs font-semibold text-gray-600">Switch Location</label>
                             <select
@@ -271,7 +271,10 @@ const Header = (prop) => {
                                 onChange={handleChange}
                             >
                                 <option value="">-- Select a location --</option>
-                                {AllLoation.map((item) => (
+                                {(currentUser.power === 'admin'
+                                    ? AllLoation
+                                    : AllLoation.filter(item => (currentUser.allowedLocCodes || []).includes(item.locCode))
+                                ).map((item) => (
                                     <option key={item.locCode} value={item.locCode}>
                                         {formatLocationName(item.locName)}
                                     </option>

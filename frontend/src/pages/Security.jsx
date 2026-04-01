@@ -13,11 +13,15 @@ const csvHeaders = [
   { label: "Date", key: "date" },      { label: "Invoice", key: "invoice" },
   { label: "Customer", key: "customer" }, { label: "Category", key: "category" },
   { label: "Sub", key: "sub" },        { label: "Security In", key: "secIn" },
-  { label: "Security Out", key: "secOut" }, { label: "Difference", key: "difference" },
+  { label: "Security Out (Cash)", key: "secOutCash" },
+  { label: "Security Out (RBL)", key: "secOutRbl" },
+  { label: "Difference", key: "difference" },
 ];
 const csvHeadersAllStores = [
   { label: "Store", key: "store" }, { label: "LocCode", key: "locCode" },
-  { label: "Security In", key: "secIn" }, { label: "Security Out", key: "secOut" },
+  { label: "Security In", key: "secIn" },
+  { label: "Security Out (Cash)", key: "secOutCash" },
+  { label: "Security Out (RBL)", key: "secOutRbl" },
   { label: "Difference", key: "difference" },
 ];
 
@@ -141,43 +145,72 @@ const Security = () => {
   /* ---------- build rows ---------- */
   let tableRows=[];
   if(selectedStore==="current"){
-    const rentRows=(rentData?.dataSet?.data||[]).map(t=>({
-      date:t.rentOutDate, invoice:t.invoiceNo, customer:t.customerName,
-      category:"RentOut", sub:"Security", secIn:+(t.securityAmount||0), secOut:0
-    }));
-    const retRows=(retData?.dataSet?.data||[]).map(t=>({
-      date:t.returnedDate, invoice:t.invoiceNo, customer:t.customerName,
-      category:"Return", sub:"Security Refund", secIn:0, secOut:+(t.securityAmount||0)
-    }));
-    tableRows=[...rentRows,...retRows];
+    const rentList = rentData?.dataSet?.data || [];
+    const retList  = retData?.dataSet?.data  || [];
+
+    // Build a map keyed by invoiceNo for quick lookup
+    const rentMap = {};
+    rentList.forEach(t => { rentMap[t.invoiceNo] = t; });
+    const retMap  = {};
+    retList.forEach(t  => { retMap[t.invoiceNo]  = t; });
+
+    // All unique invoice numbers across both lists
+    const allInvoices = [...new Set([
+      ...rentList.map(t => t.invoiceNo),
+      ...retList.map(t  => t.invoiceNo),
+    ])];
+
+    tableRows = allInvoices.map(inv => {
+      const r = rentMap[inv];
+      const x = retMap[inv];
+      const hasBoth = r && x;
+      return {
+        date:       r ? r.rentOutDate  : x.returnedDate,
+        returnDate: x ? x.returnedDate : null,
+        invoice:    inv,
+        customer:   r ? r.customerName : x.customerName,
+        category:   hasBoth ? "RentOut + Return" : r ? "RentOut" : "Return",
+        sub:        hasBoth ? "Security" : r ? "Security" : "Security Refund",
+        secIn:      r ? +(r.securityAmount  || 0) : 0,
+        secOutCash: x ? +(x.returnCashAmount || 0) : 0,
+        secOutRbl:  x ? +(x.rblRazorPay      || 0) : 0,
+        merged:     hasBoth,
+      };
+    });
   } else {
     const combined=[...rentAll,...returnAll];
     tableRows=Object.values(combined.reduce((acc,t)=>{
       const name=getStoreName(t.locCode);
-      if(!acc[name]) acc[name]={store:name,locCode:t.locCode,secIn:0,secOut:0};
-      t.Category==="Return"
-        ? acc[name].secOut += +(t.securityAmount||0)
-        : acc[name].secIn  += +(t.securityAmount||0);
+      if(!acc[name]) acc[name]={store:name,locCode:t.locCode,secIn:0,secOutCash:0,secOutRbl:0};
+      if(t.Category==="Return"){
+        acc[name].secOutCash += +(t.returnCashAmount||0);
+        acc[name].secOutRbl  += +(t.rblRazorPay||0);
+      } else {
+        acc[name].secIn += +(t.securityAmount||0);
+      }
       return acc;
-    },{})).map(r=>({...r,diff:r.secIn-r.secOut}));
+    },{})).map(r=>({...r,diff:r.secIn-(r.secOutCash+r.secOutRbl)}));
   }
 
-  const totIn = tableRows.reduce((s,r)=>s+(r.secIn||0),0);
-  const totOut= tableRows.reduce((s,r)=>s+(r.secOut||0),0);
+  const totIn      = tableRows.reduce((s,r)=>s+(r.secIn||0),0);
+  const totOutCash = tableRows.reduce((s,r)=>s+(r.secOutCash||0),0);
+  const totOutRbl  = tableRows.reduce((s,r)=>s+(r.secOutRbl||0),0);
+  const totOut     = totOutCash + totOutRbl;
   const adjIn = selectedStore==="current" ? totIn + openingCash : totIn;
 
   /* ---------- CSV data ---------- */
   const csvData = selectedStore==="all"
-    ? tableRows.map(r=>({store:r.store,locCode:r.locCode,secIn:r.secIn,secOut:r.secOut,difference:r.diff}))
+    ? tableRows.map(r=>({store:r.store,locCode:r.locCode,secIn:r.secIn,secOutCash:r.secOutCash,secOutRbl:r.secOutRbl,difference:r.diff}))
     : [
         ...(selectedStore==="current"?[{
           date:"OPENING CASH", invoice:"", customer:"", category:"", sub:"",
-          secIn:openingCash, secOut:0, difference:0
+          secIn:openingCash, secOutCash:0, secOutRbl:0, difference:0
         }]:[]),
         ...tableRows.map(r=>({
           date:r.date, invoice:r.invoice, customer:r.customer||"",
           category:r.category||"", sub:r.sub||"",
-          secIn:r.secIn, secOut:r.secOut, difference:r.secIn-r.secOut
+          secIn:r.secIn, secOutCash:r.secOutCash, secOutRbl:r.secOutRbl,
+          difference:r.secIn-(r.secOutCash+r.secOutRbl)
         }))
       ];
 
@@ -240,7 +273,8 @@ const Security = () => {
                     <th className="border p-2">Store</th>
                     <th className="border p-2">LocCode</th>
                     <th className="border p-2">Security In</th>
-                    <th className="border p-2">Security Out</th>
+                    <th className="border p-2">Security Out (Cash)</th>
+                    <th className="border p-2">Security Out (RBL)</th>
                     <th className="border p-2">Difference</th>
                   </tr>
                 ):(
@@ -251,7 +285,8 @@ const Security = () => {
                     <th className="border p-2">Category</th>
                     <th className="border p-2">Sub</th>
                     <th className="border p-2">Security In</th>
-                    <th className="border p-2">Security Out</th>
+                    <th className="border p-2">Security Out (Cash)</th>
+                    <th className="border p-2">Security Out (RBL)</th>
                     <th className="border p-2">Difference</th>
                   </tr>
                 )}
@@ -265,6 +300,7 @@ const Security = () => {
                     <td className="border p-2">{openingCash}</td>
                     <td className="border p-2">0</td>
                     <td className="border p-2">0</td>
+                    <td className="border p-2">0</td>
                   </tr>
                 )}
 
@@ -274,23 +310,30 @@ const Security = () => {
                       <td className="border p-2">{r.store}</td>
                       <td className="border p-2">{r.locCode}</td>
                       <td className="border p-2">{r.secIn}</td>
-                      <td className="border p-2">{r.secOut}</td>
+                      <td className="border p-2">{r.secOutCash}</td>
+                      <td className="border p-2">{r.secOutRbl}</td>
                       <td className="border p-2">{r.diff}</td>
                     </tr>
                   ):(
-                    <tr key={i}>
-                      <td className="border p-2">{r.date}</td>
+                    <tr key={i} className={r.merged ? "bg-blue-50" : ""}>
+                      <td className="border p-2">
+                        {r.date}
+                        {r.merged && r.returnDate && (
+                          <div className="text-[10px] text-gray-400">↩ {r.returnDate}</div>
+                        )}
+                      </td>
                       <td className="border p-2">{r.invoice}</td>
                       <td className="border p-2">{r.customer}</td>
                       <td className="border p-2">{r.category}</td>
                       <td className="border p-2">{r.sub}</td>
                       <td className="border p-2">{r.secIn}</td>
-                      <td className="border p-2">{r.secOut}</td>
-                      <td className="border p-2">{r.secIn - r.secOut}</td>
+                      <td className="border p-2">{r.secOutCash}</td>
+                      <td className="border p-2">{r.secOutRbl}</td>
+                      <td className="border p-2">{r.secIn - (r.secOutCash + r.secOutRbl)}</td>
                     </tr>
                   )
                 )):(
-                  <tr><td colSpan={selectedStore==="all"?5:8}
+                  <tr><td colSpan={selectedStore==="all"?6:9}
                           className="text-center p-4">No data found</td></tr>
                 )}
               </tbody>
@@ -300,7 +343,8 @@ const Security = () => {
                   <td colSpan={selectedStore==="all"?2:5}
                       className="border p-2 text-left">Totals</td>
                   <td className="border p-2">{adjIn}</td>
-                  <td className="border p-2">{totOut}</td>
+                  <td className="border p-2">{totOutCash}</td>
+                  <td className="border p-2">{totOutRbl}</td>
                   <td className="border p-2">{adjIn - totOut}</td>
                 </tr>
               </tfoot>

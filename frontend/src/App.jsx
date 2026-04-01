@@ -1,5 +1,6 @@
 import { Routes, Route, useLocation, Navigate, useNavigate } from "react-router-dom";
 import { useEffect, useRef } from "react";
+import usePreventNumberInputScroll from "./hooks/usePreventNumberInputScroll";
 import DayBookInc from "./pages/BillWiseIncome.jsx";
 import Datewisedaybook from "./pages/Datewisedaybook.jsx";
 import Booking from "./pages/Booking.jsx";
@@ -65,11 +66,17 @@ import SalesReport from "./pages/SalesReport.jsx";
 import SalesByInvoiceReport from "./pages/SalesByInvoiceReport.jsx";
 import InventoryReport from "./pages/InventoryReport.jsx";
 import ReorderAlerts from "./pages/ReorderAlerts.jsx";
+import Income from "./pages/Income.jsx";
+import Expenses from "./pages/Expenses.jsx";
+import IncomeExpenseReport from "./pages/IncomeExpenseReport.jsx";
 
 const App = () => {
   const location = useLocation();
   console.log(location.pathname);
   const navigate = useNavigate();
+
+  // Prevent mouse wheel from changing number input values globally
+  usePreventNumberInputScroll();
 
   // Retrieve the current user from localStorage
   const currentuser = JSON.parse(localStorage.getItem("rootfinuser")); // Convert back to an object
@@ -151,6 +158,8 @@ const App = () => {
           <Route path="/BookingReport" element={currentuser ? <Booking /> : <Navigate to="/login" />} />
           <Route path="/RentOutReport" element={currentuser ? <DayBook /> : <Navigate to="/login" />} />
           <Route path="/Income&Expenses" element={currentuser ? <SecurityReturn /> : <Navigate to="/login" />} />
+          <Route path="/income" element={currentuser ? <Income /> : <Navigate to="/login" />} />
+          <Route path="/expenses" element={currentuser ? <Expenses /> : <Navigate to="/login" />} />
           <Route path="/CashBankLedger" element={currentuser ? <SecurityPending /> : <Navigate to="/login" />} />
           <Route path="/securityReport" element={currentuser ? <Security /> : <Navigate to='/login' />} />
           <Route path="/CloseReport" element={currentuser?.power === 'admin' ? <CloseReport /> : <Navigate to='/' />} />
@@ -229,6 +238,7 @@ const App = () => {
           <Route path="/reports/sales-by-invoice" element={currentuser ? <SalesByInvoiceReport /> : <Navigate to="/login" />} />
           <Route path="/reports/sales" element={currentuser ? <SalesReport /> : <Navigate to="/login" />} />
           <Route path="/reports/inventory" element={currentuser ? <InventoryReport /> : <Navigate to="/login" />} />
+          <Route path="/reports/income-expense" element={currentuser ? <IncomeExpenseReport /> : <Navigate to="/login" />} />
           
           {/* Reorder Alerts */}
           <Route path="/inventory/reorder-alerts" element={currentuser ? <ReorderAlerts /> : <Navigate to="/login" />} />

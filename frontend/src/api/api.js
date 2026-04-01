@@ -21,6 +21,8 @@ export default baseUrl
 
 // http://localhost:7000/   
 
+// https://api.brynexapparels.in/
+
 
 
 

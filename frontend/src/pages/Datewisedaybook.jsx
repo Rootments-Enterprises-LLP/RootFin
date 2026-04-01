@@ -54,6 +54,7 @@ const subCategories = [
   { value: "petty expenses", label: "Petty Expenses" },
   { value: "shoe sales", label: "Shoe Sales" },
   { value: "shirt sales", label: "Shirt Sales" },
+  { value: "mixed sales", label: "Mixed Sales (Shoes & Shirts)" },
   { value: "bulk amount transfer", label: "Bulk Amount Transfer" }
 ];
 
@@ -110,6 +111,15 @@ const Datewisedaybook = () => {
   const currentusers = JSON.parse(localStorage.getItem("rootfinuser"));
 
   const showAction = (currentusers.power || "").toLowerCase() === "admin";
+  const isClusterManager = (currentusers.role || "").toLowerCase() === "cluster_manager";
+  const clusterAllowedLocCodes = currentusers.allowedLocCodes || [];
+
+  console.log("🔍 User role:", currentusers.role, "| isClusterManager:", isClusterManager, "| allowedLocCodes:", clusterAllowedLocCodes);
+
+  // For cluster managers, filter AllLoation to only their allowed stores
+  const visibleLocations = isClusterManager
+    ? AllLoation.filter(s => clusterAllowedLocCodes.includes(s.locCode))
+    : AllLoation;
 
   const [selectedStore, setSelectedStore] = useState("current");
   const [allStoresSummary, setAllStoresSummary] = useState([]);
@@ -290,14 +300,20 @@ const Datewisedaybook = () => {
         const rbl = Number(tx.rbl || tx.rblRazorPay || 0); // ✅ Added RBL mapping
         const bank = Number(tx.bank || 0);
         const upi = Number(tx.upi || 0);
+        const isReturn = (tx.type || "").toLowerCase() === "return";
+        const rawSubCat = tx.subCategory || tx.category || "";
+        const subCatLabel = isReturn && rawSubCat && !rawSubCat.toLowerCase().endsWith("return")
+          ? `${rawSubCat} Return`
+          : rawSubCat;
         return {
           ...tx,
           date: tx.date?.split("T")[0] || "",
           Category: tx.type,
-          SubCategory: tx.subCategory || tx.category, // ✅ Use subCategory first (shoe sales, shirt sales), fallback to category
+          SubCategory: subCatLabel,
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",
-          billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
+          remark: subCatLabel || tx.remark || tx.remarks || "",
+          billValue: Number(tx.billValue || tx.invoiceAmount || Math.abs(Number(tx.amount) || 0)),
           cash: Number(tx.cash),
           rbl: rbl, // ✅ Added RBL
           bank: Number(tx.bank),
@@ -391,7 +407,7 @@ const Datewisedaybook = () => {
     if (selectedStore === "all") {
       const tempSummary = [];
       let totalCash = 0, totalRbl = 0, totalBank = 0, totalUpi = 0; // ✅ Added totalRbl
-      for (const store of AllLoation) {
+      for (const store of visibleLocations) {
         const { locCode, locName } = store;
         const summary = await getStoreFooterTotals(locCode, fromDate, toDate);
         tempSummary.push({
@@ -552,15 +568,21 @@ const Datewisedaybook = () => {
         const bank = Number(tx.bank || 0);
         const upi = Number(tx.upi || 0);
         const total = cash + rbl + bank + upi; // ✅ Added rbl
+        const isReturn = (tx.type || "").toLowerCase() === "return";
+        const rawSubCat = tx.subCategory || tx.category || "";
+        const subCatLabel = isReturn && rawSubCat && !rawSubCat.toLowerCase().endsWith("return")
+          ? `${rawSubCat} Return`
+          : rawSubCat;
         return {
           ...tx,
           date: tx.date?.split("T")[0] || "",
           Category: tx.type,
-          SubCategory: tx.subCategory || tx.category, // ✅ Use subCategory first (shoe sales, shirt sales), fallback to category
+          SubCategory: subCatLabel,
           SubCategory1: tx.subCategory1 || tx.SubCategory1 || "",
           customerName: tx.customerName || "",
+          remark: subCatLabel || tx.remark || tx.remarks || "",
           discountAmount: Number(tx.discountAmount || 0),
-          billValue: Number(tx.billValue ?? tx.invoiceAmount ?? tx.amount),
+          billValue: Number(tx.billValue || tx.invoiceAmount || Math.abs(Number(tx.amount) || 0)),
           cash: Number(tx.cash),
           rbl: rbl, // ✅ Added RBL
           bank: Number(tx.bank),
@@ -914,12 +936,19 @@ const Datewisedaybook = () => {
   });
 
   // ✅ Updated mongo transactions with RBL
-  const Transactionsall = (mongoTransactions || []).map(transaction => ({
+  const Transactionsall = (mongoTransactions || []).map(transaction => {
+    const isReturn = (transaction.type || "").toLowerCase() === "return";
+    const rawSubCat = transaction.subCategory || transaction.SubCategory || transaction.category || "";
+    const subCatLabel = isReturn && rawSubCat && !rawSubCat.toLowerCase().endsWith("return")
+      ? `${rawSubCat} Return`
+      : rawSubCat;
+    return {
     ...transaction,
     locCode: currentusers.locCode,
     date: transaction.date.split("T")[0],
     Category: transaction.type,
-    SubCategory: transaction.category,
+    SubCategory: subCatLabel,
+    remark: subCatLabel || transaction.remark || transaction.remarks || "",
     billValue: Number(
       transaction.billValue ??
       transaction.invoiceAmount ??
@@ -934,7 +963,8 @@ const Datewisedaybook = () => {
     cash1: Number(transaction.cash),
     bank1: Number(transaction.bank),
     Tupi: Number(transaction.upi),
-  }));
+  };
+  });
 
   // ✅ Updated cancel transactions with RBL prevention logic
   const canCelTransactions = (data4?.dataSet?.data || []).map(transaction => {
@@ -1107,6 +1137,7 @@ const Datewisedaybook = () => {
           securityAmount: isRent ? securityAmount : "",
           Balance: isRent ? balance : "",
           remark: t.remark || "",
+          discountAmount: num(t.discountAmount || 0),
           billValue: num(t.billValue || t.invoiceAmount || t.amount || amount),
           cash,
           rbl, // ✅ Added RBL to export
@@ -1508,7 +1539,7 @@ const Datewisedaybook = () => {
                   className="border border-gray-300 py-2 px-3"
                 >
                   <option value="current">Current Store ({currentusers.locCode})</option>
-                  {((currentusers.power || '').toLowerCase() === 'admin') && (
+                  {((currentusers.power || '').toLowerCase() === 'admin' || isClusterManager) && (
                     <option value="all">All Stores (Totals)</option>
                   )}
                 </select>

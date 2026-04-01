@@ -575,27 +575,20 @@ export const createVendorCredit = async (req, res) => {
                 }
               } else {
                 const errorMsg = `Item ${item.itemName || item.itemId}: ${result.message}`;
-                console.warn(`   ⚠️ Failed to reduce stock: ${errorMsg}`);
+                console.warn(`   ⚠️ Stock reduction skipped (non-blocking): ${errorMsg}`);
                 stockReductionErrors.push(errorMsg);
               }
             } catch (error) {
               const errorMsg = `Item ${item.itemName || item.itemId}: ${error.message}`;
-              console.error(`   ❌ Error reducing stock for item ${item.itemName}:`, error);
-              console.error(`      Stack:`, error.stack);
+              console.error(`   ❌ Error reducing stock for item ${item.itemName} (non-blocking):`, error.message);
               stockReductionErrors.push(errorMsg);
             }
           }
         }
         
-        // If there are stock reduction errors, return error response
+        // Log warnings but do NOT block saving - vendor credit is a financial document
         if (stockReductionErrors.length > 0) {
-          // Rollback: delete the created vendor credit
-          await VendorCredit.destroy({ where: { id: vendorCredit.id } });
-          return res.status(400).json({ 
-            message: "Failed to reduce stock for some items",
-            errors: stockReductionErrors,
-            details: "Vendor credit was not created. Please check warehouse stock availability."
-          });
+          console.warn(`   ⚠️ Some stock reductions failed (vendor credit still saved):`, stockReductionErrors);
         }
       } else {
         console.log(`   No items with quantities found in vendor credit - skipping stock reduction`);
@@ -644,11 +637,16 @@ export const getVendorCredits = async (req, res) => {
                     (locCode && (locCode === '858' || locCode === '103'));
     
     // If admin has switched to a specific store (not Warehouse), filter by that store
-    const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "Warehouse";
+    const isAdminViewingSpecificStore = isAdmin && warehouse && warehouse !== "All Stores";
     
     if ((!isAdmin || isAdminViewingSpecificStore) && warehouse) {
-      whereClause.warehouse = warehouse;
-      console.log(`💰 Filtering vendor credits for warehouse: ${warehouse}`);
+      // Include records matching the warehouse OR records with no warehouse set (backward compat)
+      whereClause[Op.or] = [
+        { warehouse: warehouse },
+        { warehouse: null },
+        { warehouse: '' },
+      ];
+      console.log(`💰 Filtering vendor credits for warehouse: ${warehouse} (including unset)`);
     } else if (!isAdmin && userId) {
       whereClause.userId = userId;
     }
@@ -797,13 +795,9 @@ export const updateVendorCredit = async (req, res) => {
           }
         }
         
-        // If there are stock reduction errors, return error response
+        // Log warnings but do NOT block saving - vendor credit is a financial document
         if (stockReductionErrors.length > 0) {
-          return res.status(400).json({ 
-            message: "Failed to reduce stock for some items",
-            errors: stockReductionErrors,
-            details: "Vendor credit status was not changed. Please check warehouse stock availability."
-          });
+          console.warn(`   ⚠️ Some stock reductions failed when changing to open (non-blocking):`, stockReductionErrors);
         }
       } else {
         console.log(`   No items with quantities found - skipping stock reduction`);
