@@ -28,7 +28,7 @@ const Login = () => {
 
       if (response.ok) {
         // Assuming the response has `userId` and `role` at the root level
-        console.log("User Info from API:", data.user?.userId, data.user?.role);
+        console.log("User Info from API:", data.user?.email, data.user?.power);
 
         // Dispatch the user info to Redux store
 

@@ -174,92 +174,70 @@ export const GetAllCloseData = async (req, res) => {
             console.log(`  - locCode: ${doc.locCode}, cash: ${doc.cash}, Closecash: ${doc.Closecash}, date: ${doc.date}`);
         });
 
+        // Helper to fetch with timeout
+        const fetchWithTimeout = (url, ms = 10000) => {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), ms);
+            return fetch(url, { signal: controller.signal })
+                .then(r => r.json())
+                .catch(() => null)
+                .finally(() => clearTimeout(timer));
+        };
+
         // Calculate actual bank amounts (Bank + UPI) from transactions for each store
         const enhancedData = await Promise.all(
             manualCloseData.map(async (closeData) => {
-                // Get MongoDB transactions for this location and date
-                const mongoTransactions = await Transaction.find({
-                    locCode: closeData.locCode,
-                    date: {
-                        $gte: startOfDay,
-                        $lt: endOfDay
-                    }
-                });
-
-                // Fetch external API data (like Financial Summary)
                 const twsBase = "https://rentalapi.rootments.live/api/GetBooking";
-                const dateStr = date; // Use the date parameter directly
-                
-                let externalBank = 0;
-                let externalUPI = 0;
-                let externalCash = 0;
-                let externalRbl = 0;
+                const dateStr = date;
+                const loc = closeData.locCode;
+
+                // Fetch MongoDB transactions + all 4 external APIs in parallel
+                const [mongoTransactions, bookingData, rentoutData, returnData, deleteData] = await Promise.all([
+                    Transaction.find({ locCode: loc, date: { $gte: startOfDay, $lt: endOfDay } }),
+                    fetchWithTimeout(`${twsBase}/GetBookingList?LocCode=${loc}&DateFrom=${dateStr}&DateTo=${dateStr}`),
+                    fetchWithTimeout(`${twsBase}/GetRentoutList?LocCode=${loc}&DateFrom=${dateStr}&DateTo=${dateStr}`),
+                    fetchWithTimeout(`${twsBase}/GetReturnList?LocCode=${loc}&DateFrom=${dateStr}&DateTo=${dateStr}`),
+                    fetchWithTimeout(`${twsBase}/GetDeleteList?LocCode=${loc}&DateFrom=${dateStr}&DateTo=${dateStr}`),
+                ]);
+
+                let externalBank = 0, externalUPI = 0, externalCash = 0, externalRbl = 0;
 
                 try {
-                    // Fetch booking data
-                    const bookingResponse = await fetch(`${twsBase}/GetBookingList?LocCode=${closeData.locCode}&DateFrom=${dateStr}&DateTo=${dateStr}`);
-                    const bookingData = await bookingResponse.json();
-                    
-                    if (bookingData?.dataSet?.data) {
-                        bookingData.dataSet.data.forEach(item => {
-                            externalBank += parseInt(item.bookingBankAmount || 0);
-                            externalUPI += parseInt(item.bookingUPIAmount || 0);
-                            externalCash += parseInt(item.bookingCashAmount || 0);
-                            externalRbl += parseInt(item.rblRazorPay || 0);
-                        });
-                    }
+                    bookingData?.dataSet?.data?.forEach(item => {
+                        externalBank += parseInt(item.bookingBankAmount || 0);
+                        externalUPI  += parseInt(item.bookingUPIAmount  || 0);
+                        externalCash += parseInt(item.bookingCashAmount || 0);
+                        externalRbl  += parseInt(item.rblRazorPay       || 0);
+                    });
 
-                    // Fetch rentout data
-                    const rentoutResponse = await fetch(`${twsBase}/GetRentoutList?LocCode=${closeData.locCode}&DateFrom=${dateStr}&DateTo=${dateStr}`);
-                    const rentoutData = await rentoutResponse.json();
-                    
-                    if (rentoutData?.dataSet?.data) {
-                        rentoutData.dataSet.data.forEach(item => {
-                            externalBank += parseInt(item.rentoutBankAmount || 0);
-                            externalUPI += parseInt(item.rentoutUPIAmount || 0);
-                            externalCash += parseInt(item.rentoutCashAmount || 0);
-                            externalRbl += parseInt(item.rblRazorPay || 0);
-                        });
-                    }
+                    rentoutData?.dataSet?.data?.forEach(item => {
+                        externalBank += parseInt(item.rentoutBankAmount || 0);
+                        externalUPI  += parseInt(item.rentoutUPIAmount  || 0);
+                        externalCash += parseInt(item.rentoutCashAmount || 0);
+                        externalRbl  += parseInt(item.rblRazorPay       || 0);
+                    });
 
-                    // Fetch return data
-                    const returnResponse = await fetch(`${twsBase}/GetReturnList?LocCode=${closeData.locCode}&DateFrom=${dateStr}&DateTo=${dateStr}`);
-                    const returnData = await returnResponse.json();
-                    
-                    if (returnData?.dataSet?.data) {
-                        returnData.dataSet.data.forEach(item => {
-                            const returnRblAmount = parseInt(item.rblRazorPay || 0);
-                            
-                            // Only process bank/UPI if no RBL value (RBL prevention logic)
-                            if (returnRblAmount === 0) {
-                                externalBank -= Math.abs(parseInt(item.returnBankAmount || 0));
-                                externalUPI -= Math.abs(parseInt(item.returnUPIAmount || 0));
-                            }
-                            externalCash -= Math.abs(parseInt(item.returnCashAmount || 0));
-                            externalRbl -= Math.abs(returnRblAmount);
-                        });
-                    }
+                    returnData?.dataSet?.data?.forEach(item => {
+                        const rbl = parseInt(item.rblRazorPay || 0);
+                        if (rbl === 0) {
+                            externalBank -= Math.abs(parseInt(item.returnBankAmount || 0));
+                            externalUPI  -= Math.abs(parseInt(item.returnUPIAmount  || 0));
+                        }
+                        externalCash -= Math.abs(parseInt(item.returnCashAmount || 0));
+                        externalRbl  -= Math.abs(rbl);
+                    });
 
-                    // Fetch delete data
-                    const deleteResponse = await fetch(`${twsBase}/GetDeleteList?LocCode=${closeData.locCode}&DateFrom=${dateStr}&DateTo=${dateStr}`);
-                    const deleteData = await deleteResponse.json();
-                    
-                    if (deleteData?.dataSet?.data) {
-                        deleteData.dataSet.data.forEach(item => {
-                            const deleteRblAmount = parseInt(item.rblRazorPay || 0);
-                            
-                            // Only process bank/UPI if no RBL value (RBL prevention logic)
-                            if (deleteRblAmount === 0) {
-                                externalBank -= Math.abs(parseInt(item.deleteBankAmount || 0));
-                                externalUPI -= Math.abs(parseInt(item.deleteUPIAmount || 0));
-                            }
-                            externalCash -= Math.abs(parseInt(item.deleteCashAmount || 0));
-                            externalRbl -= Math.abs(deleteRblAmount);
-                        });
-                    }
-
+                    deleteData?.dataSet?.data?.forEach(item => {
+                        const rbl = parseInt(item.rblRazorPay || 0);
+                        if (rbl === 0) {
+                            externalBank -= Math.abs(parseInt(item.deleteBankAmount || 0));
+                            externalUPI  -= Math.abs(parseInt(item.deleteUPIAmount  || 0));
+                        }
+                        externalCash -= Math.abs(parseInt(item.deleteCashAmount || 0));
+                        externalRbl  -= Math.abs(rbl);
+                    });
                 } catch (error) {
-                    console.error(`Error fetching external data for ${closeData.locCode}:`, error);
+                    console.error(`Error processing external data for ${loc}:`, error);
                 }
 
                 // Calculate Bank + UPI total from MongoDB transactions

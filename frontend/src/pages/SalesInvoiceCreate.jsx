@@ -1850,7 +1850,7 @@ const SalesInvoiceCreate = () => {
         isSplitPayment,
         splitPaymentAmounts: isSplitPayment ? splitPaymentAmounts : null,
         lineItems: lineItems.map(item => ({
-          item: item.item || "",
+          item: typeof item.item === 'string' ? item.item : (item.item?.itemName || item.itemData?.itemName || item.itemDetails || ""),
           itemData: item.itemData ? {
             ...item.itemData,
             _id: item.itemData._id,
@@ -2935,7 +2935,8 @@ Customer Service Available`;
             // Add new item
             console.log(`➕ Added new item ${foundItem.itemName}`);
             return [...prev, {
-              item: foundItem,
+              item: foundItem.itemName || "",
+              itemData: foundItem,
               quantity: 1,
               sku: foundItem.sku
             }];
