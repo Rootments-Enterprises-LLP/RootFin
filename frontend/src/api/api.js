@@ -14,7 +14,7 @@
 
 
 const baseUrl = {
-     baseUrl:'http://api.brynexapparels.in/',
+     baseUrl:'https://api.brynexapparels.in/',
 }
 export default baseUrl
 
