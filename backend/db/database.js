@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 const connectMongoDB = async () => {
+  const env = process.env.NODE_ENV || 'production';
   const dbURI =
     env === 'production'
       ? process.env.MONGODB_URI_PROD || process.env.MONGODB_URI
