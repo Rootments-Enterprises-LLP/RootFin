@@ -1,16 +1,6 @@
 import mongoose from 'mongoose';
 
 const connectMongoDB = async () => {
-<<<<<<< HEAD
-    try {
-        await mongoose.connect(process.env.MONGODB_URI); 
-        console.log('Connected to MongoDB');
-    } catch (error) {
-        console.error('Error connecting to MongoDB:', error);
-        process.exit(1); // Exit process with failure
-    }
-}
-=======
   const dbURI =
     env === 'production'
       ? process.env.MONGODB_URI_PROD || process.env.MONGODB_URI
@@ -37,6 +27,5 @@ const connectMongoDB = async () => {
     process.exit(1);
   }
 };
->>>>>>> testenv/master
 
 export default connectMongoDB;
